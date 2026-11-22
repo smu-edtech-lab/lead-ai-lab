@@ -57,7 +57,7 @@ export function ChangeTable({
   projects: ProjectRef[];
   images: Record<string, string>;
 }) {
-  const rows = [{ name: 'slug', label: '주소', type: 'text' } as FieldDef, ...def.fields]
+  const rows = [{ name: 'slug', label: '사이트 주소', type: 'text' } as FieldDef, ...def.fields]
     .map((f) => ({ f, old: before?.[f.name], now: after[f.name] }))
     .filter((r) => !sameValue(r.old ?? null, r.now ?? null));
   if (!rows.length) return <p className="cms-muted">바뀐 내용이 없습니다.</p>;

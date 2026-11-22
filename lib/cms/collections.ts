@@ -76,6 +76,8 @@ export interface CollectionDef {
   /** "소식 추가" 처럼 쓰는 한 항목 이름 */
   itemLabel: string;
   description: string;
+  /** 공개 사이트에서 나오는 곳 — 처음 화면 카드에 짧게 표시 */
+  where: string;
   file: string;
   /** 데이터 파일 안의 배열 이름 */
   arrayKey: string;
@@ -95,6 +97,8 @@ export interface CollectionDef {
   validate?: (item: Item) => Record<string, string>;
   /** 목록 순서가 화면 순서인지 (구성원) */
   orderable: boolean;
+  /** 목록을 묶음별로 나눠 보여 줌 (구성원: 과정별) — orderable 이면 같은 묶음 안에서만 순서를 바꿈 */
+  listGroups?: { label: string; test: (item: Item) => boolean }[];
   /** 공개 화면 주소 */
   publicPath: (key: string) => string;
   /** 주소 앞에 쓰면 안 되는 말 (자동 생성 소식과 겹치지 않도록) */
@@ -208,6 +212,7 @@ const news: CollectionDef = {
   listThumb: 'landscape',
   label: '소식',
   itemLabel: '소식',
+  where: 'Home 최근 소식 · News',
   description: '연구실 공지·행사·수상 소식입니다. Home 의 최근 소식과 News 페이지에 날짜순으로 나옵니다. (논문 게재 소식은 실적 데이터에서 자동으로 만들어지므로 여기에 없습니다.)',
   file: 'content/data/news.json',
   arrayKey: 'items',
@@ -278,12 +283,14 @@ const members: CollectionDef = {
   keyField: 'slug',
   label: '구성원',
   itemLabel: '구성원',
+  where: 'People · Home',
   description: 'People 페이지와 Home 미리보기에 나오는 재학 구성원입니다. 이 목록의 순서가 같은 과정(박사·석사 등) 안에서의 화면 순서입니다.',
   file: 'content/data/members.json',
   arrayKey: 'members',
   uniqueAcross: ['members', 'alumni'],
   newPosition: 'end',
   orderable: true,
+  listGroups: memberRoles.map((r) => ({ label: memberRoleLabels[r], test: (item: Item) => item.role === r })),
   publicPath: (key) => `/people/${key}`,
   fields: [
     { name: 'name', label: '이름', type: 'text', required: true, half: true, section: '기본 정보' },
@@ -324,6 +331,7 @@ const alumni: CollectionDef = {
   keyField: 'slug',
   label: '졸업생',
   itemLabel: '졸업생',
+  where: 'People › Alumni',
   description: 'People › Alumni 에 졸업 연도순으로 나옵니다. 소속은 본인이 공개에 동의한 경우에만 적습니다.',
   file: 'content/data/members.json',
   arrayKey: 'alumni',
@@ -440,6 +448,7 @@ const journals: CollectionDef = {
   id: 'journals',
   label: '논문',
   itemLabel: '논문',
+  where: 'Publications · News(연구 성과)',
   description: 'Publications 의 학술지 논문입니다. 새 논문은 j 번호가 자동으로 붙고, 최근 논문은 News 에 ‘연구 성과’로도 자동으로 나옵니다.',
   autoKey: { prefix: 'j', width: 2 },
   match: (item) => item.type === 'journal',
@@ -483,6 +492,7 @@ const books: CollectionDef = {
   id: 'books',
   label: '저역서',
   itemLabel: '저역서',
+  where: 'Books',
   description: 'Books 페이지에 표지 카드로 나옵니다. 새 책은 b 번호가 자동으로 붙습니다.',
   autoKey: { prefix: 'b', width: 2 },
   match: (item) => item.type === 'book',
@@ -515,6 +525,7 @@ const conferences: CollectionDef = {
   id: 'conferences',
   label: '학술발표',
   itemLabel: '학술발표',
+  where: 'Publications',
   description: 'Publications 의 학술발표(학술대회 발표)입니다. 새 발표는 c 번호가 자동으로 붙습니다.',
   autoKey: { prefix: 'c', width: 2 },
   match: (item) => item.type === 'conference',
@@ -547,6 +558,7 @@ const projects: CollectionDef = {
   group: '연구 실적',
   label: '연구 과제',
   itemLabel: '연구 과제',
+  where: 'Projects · Research',
   description: 'Projects 페이지와 Research 의 과제 목록에 나옵니다. 새 과제는 p 번호가 자동으로 붙고, 구성원 프로필의 ‘참여 연구 프로젝트’에서 고를 수 있게 됩니다.',
   file: 'content/data/projects.json',
   arrayKey: 'items',

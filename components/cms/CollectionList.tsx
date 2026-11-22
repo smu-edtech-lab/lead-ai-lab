@@ -26,10 +26,27 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
   const filtered = searchable && needle ? items.filter((it) => [def.title(it), def.meta(it), it.authors, keyOf(it)].join(' ').toLowerCase().includes(needle)) : items;
   const shown: Item[] = order ? order.map((k) => items.find((x) => keyOf(x) === k)).filter((x): x is Item => !!x) : filtered;
 
-  const move = (i: number, d: -1 | 1) => {
+  /* 묶음(구성원: 과정별)으로 나눠 보여 줌 — 어느 묶음에도 안 맞는 항목은 '기타' */
+  const defGroups = def.listGroups;
+  const groupOf = (it: Item) => (defGroups ? defGroups.findIndex((g) => g.test(it)) : -1);
+  const sections: { label: string | null; rows: Item[] }[] = defGroups
+    ? [...defGroups.map((g, gi) => ({ label: g.label, rows: shown.filter((it) => groupOf(it) === gi) })), { label: '기타', rows: shown.filter((it) => groupOf(it) === -1) }].filter((g) => g.rows.length > 0)
+    : [{ label: null, rows: shown }];
+
+  /** 같은 묶음 안에서 바로 위·아래 항목과 자리를 바꿈 */
+  const move = (key: string, d: -1 | 1) => {
     const keys = (order ?? items.map(keyOf)).slice();
-    const j = i + d;
-    if (j < 0 || j >= keys.length) return;
+    const byKey = (k: string) => items.find((x) => keyOf(x) === k);
+    const me = byKey(key);
+    if (!me) return;
+    const same = keys.filter((k) => {
+      const it = byKey(k);
+      return it ? groupOf(it) === groupOf(me) : false;
+    });
+    const other = same[same.indexOf(key) + d];
+    if (!other) return;
+    const i = keys.indexOf(key);
+    const j = keys.indexOf(other);
     [keys[i], keys[j]] = [keys[j], keys[i]];
     setOrder(keys);
     setDirty(true);
@@ -87,7 +104,7 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
             </>
           }
         >
-          같은 과정(박사·석사 등) 안에서 이 순서대로 People 페이지에 나옵니다.
+          People 페이지에 과정별로 이 순서대로 나옵니다. 게시해야 사이트에 반영됩니다.
         </Notice>
       ) : null}
 
@@ -111,49 +128,62 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
           </Btn>
         </div>
       ) : (
-        <ul className="cms-list" role="list">
-          {shown.map((item, i) => {
-            const key = keyOf(item);
-            return (
-              <li key={key || i} className="cms-list__row">
-                <a
-                  className="cms-list__main"
-                  href={`#/${collection}/edit/${encodeURIComponent(key)}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate(`${collection}/edit/${encodeURIComponent(key)}`);
-                  }}
-                >
-                  {def.listThumb === 'none' ? (
-                    <span className="cms-list__key">{key}</span>
-                  ) : (
-                    <Thumb src={def.thumb(item)} label={def.title(item)} ratio={def.listThumb ?? 'portrait'} />
-                  )}
-                  <span className="cms-list__text">
-                    <span className="cms-list__title">
-                      {def.title(item)}
-                      {item.isSample ? <Badge tone="sample">예시</Badge> : null}
-                    </span>
-                    <span className="cms-list__meta">{def.meta(item)}</span>
-                  </span>
-                  <span className="cms-list__go" aria-hidden="true">
-                    편집 →
-                  </span>
-                </a>
-                {def.orderable ? (
-                  <span className="cms-list__order">
-                    <button type="button" className="cms-iconbtn" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`${def.title(item)} 위로`}>
-                      ↑
-                    </button>
-                    <button type="button" className="cms-iconbtn" onClick={() => move(i, 1)} disabled={i === shown.length - 1} aria-label={`${def.title(item)} 아래로`}>
-                      ↓
-                    </button>
-                  </span>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          {def.orderable && !order && sections.some((g) => g.rows.length > 1) ? <p className="cms-help cms-list__hint">오른쪽 ↑ ↓ 로 같은 과정 안의 순서를 바꾼 뒤 ‘이 순서로 게시’를 누르면 People 페이지 순서가 바뀝니다.</p> : null}
+          {sections.map((sec) => (
+            <section key={sec.label ?? 'all'} className="cms-listgroup" aria-label={sec.label ?? undefined}>
+              {sec.label ? (
+                <h2 className="cms-listgroup__title">
+                  {sec.label} <span className="cms-listgroup__count">{sec.rows.length}</span>
+                </h2>
+              ) : null}
+              <ul className="cms-list" role="list">
+                {sec.rows.map((item, i) => {
+                  const key = keyOf(item);
+                  const title = def.title(item);
+                  return (
+                    <li key={key || i} className="cms-list__row">
+                      <a
+                        className="cms-list__main"
+                        href={`#/${collection}/edit/${encodeURIComponent(key)}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigate(`${collection}/edit/${encodeURIComponent(key)}`);
+                        }}
+                      >
+                        {def.listThumb === 'none' ? (
+                          <span className="cms-list__key">{key}</span>
+                        ) : (
+                          <Thumb src={def.thumb(item)} label={title} ratio={def.listThumb ?? 'portrait'} />
+                        )}
+                        <span className="cms-list__text">
+                          <span className="cms-list__title">
+                            {title}
+                            {item.isSample ? <Badge tone="sample">예시</Badge> : null}
+                          </span>
+                          <span className="cms-list__meta">{def.meta(item)}</span>
+                        </span>
+                        <span className="cms-list__go" aria-hidden="true">
+                          고치기 →
+                        </span>
+                      </a>
+                      {def.orderable ? (
+                        <span className="cms-list__order">
+                          <button type="button" className="cms-iconbtn" onClick={() => move(key, -1)} disabled={i === 0} aria-label={`${title} 위로`} title="위로">
+                            ↑
+                          </button>
+                          <button type="button" className="cms-iconbtn" onClick={() => move(key, 1)} disabled={i === sec.rows.length - 1} aria-label={`${title} 아래로`} title="아래로">
+                            ↓
+                          </button>
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </>
       )}
     </div>
   );

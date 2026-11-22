@@ -47,6 +47,18 @@ export interface CommitAuthor {
   email: string;
 }
 
+/** 처음 화면의 '최근 게시' 한 줄 — 데이터 파일(content/data)을 바꾼 커밋 */
+export interface ChangeInfo {
+  /** 커밋 제목 첫 줄 */
+  title: string;
+  /** 누가 (GitHub 아이디 또는 이름) */
+  who: string;
+  /** 언제 (ISO) */
+  at: string;
+  /** GitHub 에서 보기 (체험 모드는 빈 문자열) */
+  url: string;
+}
+
 export interface RepoBackend {
   readonly kind: 'github' | 'mock';
   /** 저장소 이름 (화면 표시용, 예: "smu-edtech-lab/lead-ai-lab") */
@@ -73,6 +85,8 @@ export interface RepoBackend {
   mergePull(number: number, input: { sha: string; title: string }): Promise<void>;
   /** 최근 사이트 배포(GitHub Actions) 상태. 권한이 없으면 null */
   latestDeploy(): Promise<DeployInfo | null>;
+  /** 데이터 파일을 바꾼 최근 커밋 (새것부터) */
+  recentChanges(limit: number): Promise<ChangeInfo[]>;
 }
 
 export type CmsErrorCode =

@@ -40,7 +40,7 @@ function Wrap({ field, path, error, children, group }: { field: FieldDef; path: 
   const cls = cx('cms-field', field.half && 'cms-field--half', error && 'has-error');
   if (group) {
     return (
-      <fieldset className={cls}>
+      <fieldset className={cls} id={`${id}-wrap`}>
         <legend className="cms-label">{label}</legend>
         {help}
         {children}
@@ -130,7 +130,7 @@ function ImageInput({ field, value, onChange, env, id }: { field: FieldDef; valu
   const portrait = field.image?.mode === 'crop';
   return (
     <div className="cms-image">
-      <Thumb src={src} label={field.label} ratio={portrait ? 'portrait' : 'landscape'} />
+      <Thumb src={src} ratio={portrait ? 'portrait' : 'landscape'} />
       <div className="cms-image__side">
         <div className="cms-row">
           <label className={cx('cms-btn', 'cms-btn--secondary', busy && 'is-busy')} htmlFor={id}>
@@ -179,7 +179,7 @@ function ListInput({ field, value, path, onChange, errors, env }: { field: Field
   };
   return (
     <div className="cms-listfield">
-      {rows.length === 0 ? <p className="cms-help cms-listfield__empty">아직 없습니다.</p> : null}
+      {rows.length === 0 ? <p className="cms-help cms-listfield__empty">아직 없습니다. 아래 ‘+ {field.addLabel ?? '추가'}’를 눌러 한 줄씩 넣습니다.</p> : null}
       {rows.map((row, i) => (
         <div className={cx('cms-listfield__row', field.hideable && row.hidden === true && 'is-hidden')} key={i}>
           <div className="cms-listfield__cells">
@@ -229,20 +229,20 @@ function ListInput({ field, value, path, onChange, errors, env }: { field: Field
             })}
           </div>
           <div className="cms-listfield__tools">
-            <button type="button" className="cms-iconbtn" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`${field.label} ${i + 1}번째 위로`}>
+            <button type="button" className="cms-iconbtn" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`${field.label} ${i + 1}번째 위로`} title="위로">
               ↑
             </button>
-            <button type="button" className="cms-iconbtn" onClick={() => move(i, 1)} disabled={i === rows.length - 1} aria-label={`${field.label} ${i + 1}번째 아래로`}>
+            <button type="button" className="cms-iconbtn" onClick={() => move(i, 1)} disabled={i === rows.length - 1} aria-label={`${field.label} ${i + 1}번째 아래로`} title="아래로">
               ↓
             </button>
-            <button type="button" className="cms-iconbtn cms-iconbtn--danger" onClick={() => onChange(rows.filter((_, j) => j !== i))} aria-label={`${field.label} ${i + 1}번째 지우기`}>
+            <button type="button" className="cms-iconbtn cms-iconbtn--danger" onClick={() => onChange(rows.filter((_, j) => j !== i))} aria-label={`${field.label} ${i + 1}번째 줄 지우기`} title="이 줄 지우기">
               ×
             </button>
           </div>
         </div>
       ))}
       <div className="cms-row">
-        <Btn variant="ghost" size="s" onClick={() => onChange([...rows, {}])}>
+        <Btn variant="secondary" size="s" onClick={() => onChange([...rows, {}])}>
           + {field.addLabel ?? '추가'}
         </Btn>
         {field.hideable && rows.length > 1 ? (

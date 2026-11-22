@@ -9,7 +9,7 @@ import membersData from '@/content/data/members.json';
 import projectsData from '@/content/data/projects.json';
 import publicationsData from '@/content/data/publications.json';
 import { bytesToBase64, utf8ToBase64 } from './encoding';
-import { CmsError, type CmsUser, type DeployInfo, type FileChange, type PullInfo, type RepoBackend } from './types';
+import { CmsError, type ChangeInfo, type CmsUser, type DeployInfo, type FileChange, type PullInfo, type RepoBackend } from './types';
 
 interface MockCommit {
   sha: string;
@@ -17,6 +17,8 @@ interface MockCommit {
   /** 경로 → 텍스트 | "b64:<base64>" | "url:/images/…"(개발 서버의 기존 파일) */
   files: Record<string, string>;
   message: string;
+  /** 만든 시각 (ms) — 처음 화면 '최근 게시'용 */
+  at?: number;
 }
 
 interface MockState {
@@ -155,7 +157,7 @@ export class MockBackend implements RepoBackend {
       }
     }
     const sha = this.nextSha();
-    this.state.commits[sha] = { sha, parent: input.parent, files, message: input.message };
+    this.state.commits[sha] = { sha, parent: input.parent, files, message: input.message, at: Date.now() };
     this.save();
     return sha;
   }
@@ -195,6 +197,18 @@ export class MockBackend implements RepoBackend {
     this.state.deployAt = Date.now();
     p.open = false;
     this.save();
+  }
+
+  async recentChanges(limit: number): Promise<ChangeInfo[]> {
+    const out: ChangeInfo[] = [];
+    let cur: string | null = this.state.branches[this.branch] ?? null;
+    while (cur && out.length < limit) {
+      const c: MockCommit | undefined = this.state.commits[cur];
+      if (!c?.parent) break; // 맨 처음(체험 시작)은 빼고
+      out.push({ title: c.message.split('\n')[0], who: 'demo-editor', at: new Date(c.at ?? Date.now()).toISOString(), url: '' });
+      cur = c.parent;
+    }
+    return out;
   }
 
   async latestDeploy(): Promise<DeployInfo | null> {

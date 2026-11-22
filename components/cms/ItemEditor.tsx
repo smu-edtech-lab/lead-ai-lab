@@ -82,6 +82,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   const [confirming, setConfirming] = useState<Pending | null>(null);
   const [conflict, setConflict] = useState<{ list: Conflict[]; ops: Op[]; kind: 'save' | 'delete' } | null>(null);
   const [restorable, setRestorable] = useState<{ draft: Item; at: number } | null>(null);
+  const [askDelete, setAskDelete] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   /* 주소(slug) — 새 항목은 손대기 전까지 이름·날짜로 자동 제안 */
@@ -255,11 +256,14 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
     }
   };
 
+  /** 이 항목 전용 사진 파일 (삭제할 때 함께 지움) */
+  const ownedFiles = base ? def.fields.filter((f) => f.type === 'image' && f.image && ownedImage(base[f.name], f.image.dir, keyOf(base))).map((f) => base[f.name] as string) : [];
+
   const remove = () => {
     if (!base) return;
-    if (!window.confirm(`「${def.title(base)}」 ${josa(def.itemLabel, '을', '를')} 삭제할까요?\n공개 사이트에서 바로 사라집니다. 변경 기록에는 남습니다.`)) return;
+    setAskDelete(false);
     const ops: Op[] = [{ kind: 'delete', collection, key: keyOf(base), before: base }];
-    for (const f of def.fields) if (f.type === 'image' && f.image && ownedImage(base[f.name], f.image.dir, keyOf(base))) ops.push({ kind: 'deleteFile', path: toRepoPath(base[f.name] as string) });
+    for (const path of ownedFiles) ops.push({ kind: 'deleteFile', path: toRepoPath(path) });
     void publish(ops, 'delete');
   };
 
@@ -335,6 +339,59 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
 
   const clashLabels = (c: Conflict) => c.fields.map((n) => def.fields.find((f) => f.name === n)?.label ?? n).join(', ');
 
+  /* 긴 폼(구성원·졸업생)은 위쪽에 바로 가기 — 목록 칸이 있는 묶음은 목록 칸마다, 아니면 소제목 */
+  const jumps = groups.flatMap((g, gi) => {
+    const lists = g.fields.filter((f) => f.type === 'list');
+    if (lists.length) return lists.map((f) => ({ id: `cms-f-${f.name}-wrap`, label: f.label }));
+    return g.title ? [{ id: `cms-sec-${gi}`, label: g.title }] : [];
+  });
+  const jumpTo = (id: string) => {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(id)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  };
+
+  /* 새 항목의 주소·번호 칸 — 자동으로 채워 두므로 첫 묶음 맨 아래에 둠 (이미 있는 항목은 제목 아래에 주소가 보임) */
+  const keyField =
+    !isNew || isMove ? null : autoKey ? (
+      <div className="cms-field">
+        <span className="cms-label">
+          번호 <span className="cms-auto">자동</span>
+        </span>
+        <p className="cms-static">{slug}</p>
+        <p className="cms-help">
+          게시할 때 자동으로 정해집니다 ({def.autoKey?.prefix} 번호 중 가장 큰 번호 + 1). 그사이 다른 사람이 먼저 추가하면 다음 번호가 붙습니다.
+        </p>
+      </div>
+    ) : (
+      <div className={`cms-field${shownErrors.slug ? ' has-error' : ''}`}>
+        <label className="cms-label" htmlFor="cms-f-slug">
+          사이트 주소 <span className="cms-auto">자동 제안</span>
+        </label>
+        <div className="cms-prefixed">
+          <span className="cms-prefixed__pre" aria-hidden="true">
+            {def.publicPath('')}
+          </span>
+          <input
+            id="cms-f-slug"
+            className="cms-input"
+            value={slug}
+            spellCheck={false}
+            autoCapitalize="off"
+            onChange={(e) => {
+              setSlugTouched(true);
+              setField('slug', e.target.value.toLowerCase().replace(/\s+/g, '-'));
+            }}
+            aria-invalid={shownErrors.slug ? true : undefined}
+            aria-describedby="cms-f-slug-help"
+          />
+        </div>
+        <p className="cms-help" id="cms-f-slug-help">
+          자동으로 만들어 두었으니 보통은 그대로 두면 됩니다. 바꾸려면 영문 소문자·숫자·하이픈(-)만 쓰고, 게시한 뒤에는 바꿀 수 없습니다.
+        </p>
+        {shownErrors.slug ? <p className="cms-error">{shownErrors.slug}</p> : null}
+      </div>
+    );
+
   return (
     <div className="cms-page cms-editor">
       <header className={targets.length ? 'cms-page__head cms-page__head--row' : 'cms-page__head'}>
@@ -386,6 +443,17 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
           </div>
         ) : null}
       </header>
+
+      {jumps.length >= 4 ? (
+        <nav className="cms-jump" aria-label="이 화면 바로 가기">
+          <span className="cms-jump__label">바로 가기</span>
+          {jumps.map((j) => (
+            <button key={j.id} type="button" className="cms-jump__link" onClick={() => jumpTo(j.id)}>
+              {j.label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
       {move && srcDef && source ? (
         <Notice tone="info" title={`게시하면 ${srcDef.label} 목록에서 빠지고 ${def.label} 목록에 들어갑니다`}>
@@ -495,53 +563,10 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
                 </h2>
               ) : null}
               <div className="cms-fields">
-                {gi === 0 && autoKey ? (
-                  <div className="cms-field">
-                    <span className="cms-label">번호</span>
-                    <p className="cms-static">{slug}</p>
-                    <p className="cms-help">
-                      {isNew
-                        ? `게시할 때 자동으로 정해집니다 (${def.autoKey?.prefix} 번호 중 가장 큰 번호 + 1). 그사이 다른 사람이 먼저 추가하면 다음 번호가 붙습니다.`
-                        : '번호는 바꿀 수 없습니다. 구성원 프로필 등 다른 곳에서 이 번호로 연결합니다.'}
-                    </p>
-                  </div>
-                ) : null}
-                {gi === 0 && !autoKey ? (
-                  <div className={`cms-field${shownErrors.slug ? ' has-error' : ''}`}>
-                    <label className="cms-label" htmlFor="cms-f-slug">
-                      주소 (영문)
-                      {isNew && !isMove ? <span className="cms-req">필수</span> : null}
-                    </label>
-                    {isNew && !isMove ? (
-                      <input
-                        id="cms-f-slug"
-                        className="cms-input"
-                        value={slug}
-                        spellCheck={false}
-                        autoCapitalize="off"
-                        onChange={(e) => {
-                          setSlugTouched(true);
-                          setField('slug', e.target.value.toLowerCase().replace(/\s+/g, '-'));
-                        }}
-                        aria-invalid={shownErrors.slug ? true : undefined}
-                        aria-describedby="cms-f-slug-help"
-                      />
-                    ) : (
-                      <p className="cms-static">{slug}</p>
-                    )}
-                    <p className="cms-help" id="cms-f-slug-help">
-                      {isMove && srcDef
-                        ? `${srcDef.itemLabel}일 때의 주소를 그대로 씁니다. 상세 페이지 주소 ${def.publicPath(slug)} 가 바뀌지 않습니다.`
-                        : isNew
-                          ? `사이트 주소 ${def.publicPath(slug || '…')} 에 쓰입니다. 영문 소문자·숫자·하이픈(-)만 쓰며, 게시한 뒤에는 바꿀 수 없습니다.`
-                          : '주소는 바꿀 수 없습니다. 바꿔야 하면 새로 추가한 뒤 이 항목을 삭제하세요.'}
-                    </p>
-                    {shownErrors.slug ? <p className="cms-error">{shownErrors.slug}</p> : null}
-                  </div>
-                ) : null}
                 {g.fields.map((f) => (
                   <FieldControl key={f.name} field={f} value={draft[f.name]} onChange={(v) => setField(f.name, v)} errors={shownErrors} env={env} />
                 ))}
+                {gi === 0 ? keyField : null}
               </div>
             </section>
           ))}
@@ -558,13 +583,17 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
 
       <div className="cms-actionbar">
         <div className="cms-actionbar__inner">
-          <span className="cms-actionbar__hint">{showErrors && errorCount ? `확인할 칸 ${errorCount}개` : changed ? '게시하지 않은 수정이 있습니다' : ''}</span>
-          <div className="cms-row">
+          <div className="cms-actionbar__left">
             {!isNew ? (
-              <Btn variant="danger" busy={saving === 'delete'} disabled={saving !== null} onClick={remove}>
-                삭제
+              <Btn variant="danger" size="s" busy={saving === 'delete'} disabled={saving !== null} onClick={() => setAskDelete(true)}>
+                이 {def.itemLabel} 삭제
               </Btn>
             ) : null}
+          </div>
+          <div className="cms-row cms-actionbar__right">
+            <span className={showErrors && errorCount ? 'cms-actionbar__hint is-error' : 'cms-actionbar__hint'}>
+              {showErrors && errorCount ? `확인할 칸 ${errorCount}개` : changed ? '게시하지 않은 수정이 있습니다' : ''}
+            </span>
             <Btn variant="ghost" onClick={() => navigate(isMove ? sourcePath : collection)} disabled={saving !== null}>
               취소
             </Btn>
@@ -608,6 +637,33 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
               </div>
             </div>
           </>
+        ) : null}
+      </Dialog>
+
+      <Dialog
+        open={askDelete}
+        title={base ? `「${def.title(base)}」 ${josa(def.itemLabel, '을', '를')} 삭제할까요?` : '삭제할까요?'}
+        onClose={() => setAskDelete(false)}
+        actions={
+          <>
+            <Btn variant="ghost" onClick={() => setAskDelete(false)}>
+              취소
+            </Btn>
+            <Btn variant="danger" onClick={remove}>
+              삭제하기
+            </Btn>
+          </>
+        }
+      >
+        <ul className="cms-dialog__list">
+          <li>1~2분 뒤 공개 사이트에서 사라집니다.</li>
+          {ownedFiles.length ? <li>이 {def.itemLabel}의 사진 파일도 함께 지웁니다.</li> : null}
+          <li>변경 기록에는 남아서, 필요하면 담당자가 되살릴 수 있습니다.</li>
+        </ul>
+        {targets.length ? (
+          <Notice tone="info" title="졸업했다면 삭제 대신 옮기세요">
+            편집 화면 오른쪽 위의 ‘{targets[0].moveFrom?.buttonLabel}’를 쓰면 이름·사진·상세 프로필이 {targets[0].label} 목록으로 옮겨집니다.
+          </Notice>
         ) : null}
       </Dialog>
     </div>

@@ -3,7 +3,7 @@
  * 토큰은 로그인한 사람의 것이므로, GitHub 가 그 사람에게 준 권한(저장소 협업자 역할)만큼만 할 수 있습니다.
  */
 import { base64ToUtf8 } from './encoding';
-import { CmsError, type CmsUser, type DeployInfo, type FileChange, type PullInfo, type RepoBackend, type Role } from './types';
+import { CmsError, type ChangeInfo, type CmsUser, type DeployInfo, type FileChange, type PullInfo, type RepoBackend, type Role } from './types';
 
 const API = 'https://api.github.com';
 
@@ -204,5 +204,18 @@ export class GitHubBackend implements RepoBackend {
       if (e instanceof CmsError && e.code === 'unauthorized') throw e;
       return null;
     }
+  }
+
+  async recentChanges(limit: number): Promise<ChangeInfo[]> {
+    const r = await this.req<{ html_url: string; author: { login: string } | null; commit: { message: string; author: { name: string; date: string } | null } }[]>(
+      'GET',
+      `${this.base}/commits?sha=${encodeURIComponent(this.branch)}&path=content/data&per_page=${limit}`,
+    );
+    return r.map((c) => ({
+      title: c.commit.message.split('\n')[0],
+      who: c.author?.login ?? c.commit.author?.name ?? '',
+      at: c.commit.author?.date ?? '',
+      url: c.html_url,
+    }));
   }
 }
