@@ -28,8 +28,9 @@ export const metadata: Metadata = {
 export default function HomePage() {
   const areas = getResearchAreas();
   const projects = getProjects().slice(0, 2);
-  const members = getMembers();
-  const people = members.slice(0, 4); // 지도교수 카드는 Home 에 두지 않음(About › Professor 로 충분, 2026-11-06 요청)
+  // Home 의 구성원 미리보기는 site.homeShowPeople 이 true 일 때만(2026-11-22 연구실 요청으로 숨김 — 구성원은 People 페이지에서만 소개).
+  // 지도교수 카드는 Home 에 두지 않음(About › Professor 로 충분, 2026-11-06 요청)
+  const people = site.homeShowPeople ? getMembers().slice(0, 4) : [];
   const pubs = getSelectedPublications(5);
   const news = getLatestNews(3);
 
@@ -120,7 +121,8 @@ export default function HomePage() {
         projectsDescription="학습분석, 교수설계, 교육기술에 대한 탐구를 바탕으로 교육의 문제를 해결하고 새로운 가능성을 모색합니다."
       />
 
-      {/* (04) People preview — 예시(가상) 구성원도 '예시' 배지와 함께 표시(2026-11-06 결정). 구성원이 하나도 없을 때만 섹션을 숨깁니다 */}
+      {/* (04) People preview — 지금은 숨김(content/site.ts 의 homeShowPeople: false, 2026-11-22 연구실 요청).
+          켜면 예시(가상) 구성원도 '예시' 배지와 함께 표시(2026-11-06 결정)하고, 구성원이 하나도 없으면 섹션이 나오지 않습니다 */}
       {people.length ? (
       <section className="lab-sec lab-sec--subtle" aria-labelledby="home-people">
         <div className="lab-container">

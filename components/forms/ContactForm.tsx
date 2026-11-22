@@ -5,7 +5,11 @@
  *   받는 주소·제목·본문을 채워 줍니다. 실제 발송은 방문자가 메일 앱에서 보내기를 눌러야 이루어지므로, 이 화면은 '전송 완료'라고 말하지 않습니다.
  *   메일 앱이 열리지 않는 환경을 위해 정리된 내용과 복사 버튼, 받는 주소를 함께 보여 줍니다. 예시(가상) 주소에는 '예시' 배지가 붙습니다.
  * email 이 없으면 검증을 통과한 내용을 정리해 보여 주기만 합니다(복사용).
- * 메일 앱 없이 사이트에서 바로 발송하려면 전송 서버가 필요합니다 — onSubmit(data) → Promise 를 넘기면 그때부터 실제 전송 상태(보내는 중·완료·오류)를 표시합니다.
+ * 자동 발송(2026-11-15 연구실 요청, Google 계정 방식): content/site.ts 의 contactEndpoint(Google Apps Script 웹 앱 주소)가 있으면
+ *   보내기 버튼이 그 주소로 내용을 보내고, 스크립트(contact-mail/Code.gs)가 연구실 메일로 발송합니다.
+ *   스크립트가 '보냈다'고 답했을 때만 전송 완료를 표시합니다. 실패하면 입력 내용을 그대로 두고 메일 앱으로 보내기(또는 내용 정리)로 넘어갈 수 있게 합니다.
+ *   설정 방법: docs/문의-자동발송-설정.md
+ * onSubmit(data) → Promise 를 넘기면 contactEndpoint 대신 그 함수로 보냅니다(다른 전송 서버를 붙일 때).
  */
 import { useEffect, useRef, useState } from 'react';
 import { cx, motion } from '@/lib/motion/core';
@@ -40,14 +44,37 @@ function LabAddress() {
 }
 
 type Errors = Partial<Record<keyof ContactData, string>>;
+/* 검사 기준은 전송 스크립트(contact-mail/Code.gs)와 같습니다 — 한쪽을 바꾸면 다른 쪽도 바꾸세요 */
+const EMAIL_RE = /^[^\s@,;<>()"]+@[^\s@,;<>()"]+\.[^\s@,;<>()"]+$/;
 function rules(x: ContactData): Errors {
   const r: Errors = {};
   if (!x.name.trim()) r.name = '이름을 입력해 주세요.';
+  else if (x.name.trim().length > 80) r.name = '이름은 80자 이내로 입력해 주세요.';
   if (!x.email.trim()) r.email = '이메일을 입력해 주세요.';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email)) r.email = '이메일 형식을 확인해 주세요. 예: name@example.com';
+  else if (x.email.trim().length > 200 || !EMAIL_RE.test(x.email.trim())) r.email = '이메일 형식을 확인해 주세요. 예: name@example.com';
   if (x.message.trim().length < 10) r.message = '문의 내용을 10자 이상 입력해 주세요.';
+  else if (x.message.trim().length > 5000) r.message = '문의 내용은 5,000자 이내로 입력해 주세요.';
   if (!x.agree) r.agree = '개인정보 수집·이용에 동의해 주세요.';
   return r;
+}
+
+/* 자동 발송 — Google Apps Script 웹 앱(contact-mail/Code.gs)으로 문의 내용을 보냅니다. 스크립트가 { ok: true } 로 답해야 성공이고, 그 밖에는 모두 실패로 봅니다.
+   Content-Type 이 text/plain 인 이유: application/json 으로 보내면 브라우저가 사전 확인 요청(preflight)을 먼저 보내는데, Apps Script 웹 앱은 그 요청에 답하지 않습니다. */
+async function postInquiry(url: string, d: ContactData, extra: { purposeLabel: string; website: string; elapsed: number }): Promise<void> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ purpose: d.purpose, name: d.name.trim(), email: d.email.trim(), org: d.org.trim().slice(0, 120), message: d.message.trim(), agree: d.agree, ...extra }),
+      signal: ctrl.signal,
+    });
+    const out: unknown = await res.json();
+    if (!out || (out as { ok?: unknown }).ok !== true) throw new Error('not sent');
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactData) => Promise<unknown>; className?: string }) {
@@ -57,6 +84,15 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error' | 'ready'>('idle');
   const [copied, setCopied] = useState(false);
   const done = useRef<HTMLDivElement>(null);
+  /* 자동 프로그램을 걸러내는 두 가지: 사람에게 안 보이는 칸(trap)과, 화면을 연 뒤 제출까지 걸린 시간(opened) */
+  const trap = useRef<HTMLInputElement>(null);
+  const opened = useRef(0);
+  useEffect(() => {
+    opened.current = Date.now();
+  }, []);
+  const endpoint = site.contactEndpoint;
+  /* 메일 앱으로 넘길 주소. 자동 발송을 켠 뒤에는 예시(가상) 주소로 넘기지 않습니다 — 배달되지 않는 주소라 문의가 사라집니다 */
+  const mailTo = site.email && !(endpoint && site.emailIsSample) ? site.email : null;
   const upd = <K extends keyof ContactData>(k: K, v: ContactData[K]) => {
     const n = { ...d, [k]: v };
     setD(n);
@@ -79,7 +115,16 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
       .join('\n');
   const purposeLabel = () => PURPOSES.find((p) => p.value === d.purpose)?.label ?? d.purpose;
   /* 연구실 메일 주소가 있을 때의 mailto 주소(받는 주소·제목·본문 채움). 없으면 null */
-  const mailHref = () => (site.email ? `mailto:${site.email}?subject=${encodeURIComponent(`[연구실 문의] ${purposeLabel()} — ${d.name.trim()}`)}&body=${encodeURIComponent(composed())}` : null);
+  const mailHref = () => (mailTo ? `mailto:${mailTo}?subject=${encodeURIComponent(`[연구실 문의] ${purposeLabel()} — ${d.name.trim()}`)}&body=${encodeURIComponent(composed())}` : null);
+  /* 실제 전송 함수 — onSubmit prop 이 우선, 없으면 contactEndpoint 로 보냄, 둘 다 없으면 null(메일 앱 방식) */
+  const send: ((x: ContactData) => Promise<unknown>) | null =
+    onSubmit ?? (endpoint ? (x) => postInquiry(endpoint, x, { purposeLabel: purposeLabel(), website: trap.current?.value ?? '', elapsed: Date.now() - opened.current }) : null);
+  /* 메일 앱으로 넘기기 — 넘길 주소가 있으면 방문자의 메일 앱을 열어 내용을 채워 주고(보내기는 메일 앱에서), 이어서 정리된 내용을 보여 줌 */
+  const toMailApp = () => {
+    const href = mailHref();
+    if (href) window.open(href, '_self');
+    setState('ready');
+  };
   const submit = (ev: React.FormEvent<HTMLFormElement>) => {
     ev.preventDefault();
     const r = rules(d);
@@ -89,15 +134,13 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
       ev.currentTarget.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       return;
     }
-    if (!onSubmit) {
-      /* 전송 서버 미연결: 연구실 메일 주소가 있으면 방문자의 메일 앱을 열어 내용을 채워 주고(보내기는 메일 앱에서), 이어서 정리된 내용을 보여 줌 */
-      const href = mailHref();
-      if (href) window.open(href, '_self');
-      setState('ready');
+    if (!send) {
+      toMailApp();
       return;
     }
+    if (state === 'loading') return;
     setState('loading');
-    onSubmit(d).then(
+    send(d).then(
       () => setState('done'),
       () => setState('error'),
     );
@@ -113,6 +156,7 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
     setTouched({});
     setErr({});
     setState('idle');
+    opened.current = Date.now();
   };
   const copy = () => {
     const ok = () => {
@@ -136,7 +180,7 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
           </svg>
         </span>
         <h3 className="lab-t-h3">Thank you.</h3>
-        <p className="lab-t-body-l">문의가 접수되었습니다. 담당자가 확인 후 입력하신 이메일로 회신드립니다.</p>
+        <p className="lab-t-body-l">문의가 연구실 메일로 전송되었습니다. 확인 후 입력하신 이메일로 회신드립니다.</p>
         <Button variant="secondary" icon={null} onClick={reset}>
           새 문의 작성
         </Button>
@@ -158,7 +202,7 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
             </p>
           ) : (
             <p>
-              <b>온라인 접수는 준비 중입니다.</b> 아래 내용을 복사해 연구실로 보내 주시거나, 연구실 전화(
+              <b>{endpoint ? '문의가 아직 전송되지 않았습니다.' : '온라인 접수는 준비 중입니다.'}</b> 아래 내용을 복사해 {endpoint ? '두고 잠시 후 다시 보내거나' : '연구실로 보내 주시거나'}, 연구실 전화(
               <a href={site.phoneHref}>{site.phone}</a>)로 문의해 주세요.
             </p>
           )}
@@ -212,6 +256,15 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
           className="lab-form__full"
         />
       </div>
+      {endpoint && !onSubmit ? (
+        /* 자동 프로그램을 걸러내는 칸 — 화면에 보이지 않고 읽어 주지도 않습니다. 채워져서 오면 전송 스크립트가 거절합니다 */
+        <div className="lab-sr-only" aria-hidden="true">
+          <label>
+            이 칸은 비워 두세요
+            <input ref={trap} type="text" name="lab_hp" tabIndex={-1} autoComplete="off" defaultValue="" />
+          </label>
+        </div>
+      ) : null}
       <Checkbox
         label="문의 처리를 위한 개인정보(이름·이메일·문의 내용) 수집·이용에 동의합니다."
         checked={d.agree}
@@ -223,8 +276,10 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
       />
       {!onSubmit ? (
         <p className="lab-form__status">
-          <Icon name={site.email ? 'mail' : 'alert'} size={18} />
-          {site.email ? (
+          <Icon name={endpoint || mailTo ? 'mail' : 'alert'} size={18} />
+          {endpoint ? (
+            <span>보내기를 누르면 입력한 내용이 연구실 메일로 바로 전송됩니다. 전송에는 Google의 서비스를 이용합니다.</span>
+          ) : mailTo ? (
             <span>
               보내기를 누르면 메일 앱이 열리고 입력한 내용이 채워집니다. 메일 앱에서 한 번 더 보내기를 눌러야 전송됩니다. 받는 주소: <LabAddress />
             </span>
@@ -234,14 +289,22 @@ export function ContactForm({ onSubmit, className }: { onSubmit?: (d: ContactDat
         </p>
       ) : null}
       {state === 'error' ? (
-        <p className="lab-field__error" role="alert">
-          <Icon name="alert" size={14} />
-          전송에 실패했습니다. 잠시 후 다시 시도해 주세요.
-        </p>
+        <div className="lab-form__status lab-form__status--error" role="alert">
+          <Icon name="alert" size={18} />
+          <div className="lab-form__retry">
+            <p>
+              <b>문의를 전송하지 못했습니다.</b> 입력한 내용은 그대로 남아 있습니다. 잠시 후 다시 보내 주세요. 계속 안 되면 {mailTo ? '메일 앱으로 보내거나' : '내용을 복사해 두고'} 연구실 전화(
+              <a href={site.phoneHref}>{site.phone}</a>)로 문의해 주세요.
+            </p>
+            <Button variant="secondary" size="s" icon={mailTo ? 'mail' : 'copy'} onClick={toMailApp}>
+              {mailTo ? '메일 앱으로 보내기' : '내용 정리해서 보기'}
+            </Button>
+          </div>
+        </div>
       ) : null}
       <div className="lab-form__submit">
         <Button type="submit" variant="primary" size="l" magnetic loading={state === 'loading'}>
-          {state === 'loading' ? '보내는 중' : onSubmit ? '문의 보내기' : site.email ? '메일로 보내기' : '입력 내용 확인'}
+          {state === 'loading' ? '보내는 중' : send ? '문의 보내기' : mailTo ? '메일로 보내기' : '입력 내용 확인'}
         </Button>
       </div>
     </form>

@@ -36,7 +36,7 @@ app/                    라우트 (page.tsx = 서버 컴포넌트)
   publications/         Publications — 논문·학술발표만 (URL 쿼리 type/area/q/order), 메뉴에서는 Research › Publications/Presentations 로 진입
   books/                Books — 저역서 표지 카드 목록 (publications.json 의 book 항목, cover 가 있으면 이미지, purchaseUrl 이 있으면 표지가 구매 페이지 링크)
   news/                 News, news/[slug] 소식 상세
-  contact/              Contact (폼은 미연결 — 전송 완료로 표시하지 않음)
+  contact/              Contact (문의 폼: site.contactEndpoint 가 있으면 자동 발송, 없으면 방문자의 메일 앱 열기)
   not-found.tsx, sitemap.ts, robots.ts, layout.tsx(SEO·OG 메타 — brand 에서 파생), icon.svg(파비콘 — 브랜드 마크, components/brand 의 Mark 와 동일 형태)
 components/
   brand/                Logo: Wordmark(SVG "LEAD AI LAB." — tone auto/light/dark, compact "LEAD."), Mark(파비콘형 마크), WordmarkText(HTML 타이포 워드마크)
@@ -98,6 +98,8 @@ scripts/
 | 연구 분야 명칭·설명 | `content/research-areas.ts` | 확정 후 `provisional: false` 로 바꾸면 ‘임시 분류’ 안내가 사라짐 |
 | 브랜드 명칭·슬로건·소개문·비전 축 | `content/data/brand.json` | `name`/`wordmark`/`nameKo`/`meaning`/`tagline`/`sloganKo`/`intro[]`/`pillars[]`. 헤더·푸터·히어로·커튼·SEO·OG 가 모두 여기서 읽음. 승인되면 `meta.status` 를 `"approved"` 로 |
 | 이메일·주소 | `content/site.ts` | `email`(지금은 예시 주소 — 실제 주소로 바꾸고 `emailIsSample` 을 `false` 로), `address.street` (연구실 명칭은 brand.json 에서 파생) |
+| Home 구성원 미리보기 | `content/site.ts` | `homeShowPeople` — 지금 `false`(숨김, 2026-11-22 연구실 요청). `true` 로 바꾸면 Home 에 구성원 카드(목록의 처음 4명)가 다시 나옴. People 메뉴·People 페이지·개인 상세 페이지·검색은 이 값과 상관없이 그대로 |
+| 문의 자동 발송 | `content/site.ts` | `contactEndpoint` — Google Apps Script 웹 앱 주소. `null` 이면 꺼짐. 만드는 방법: [docs/문의-자동발송-설정.md](docs/문의-자동발송-설정.md), 스크립트: `contact-mail/Code.gs` |
 | 교수 소개문·영문명·링크 | `content/profile.ts` | `bio`, `nameEn`, `links[]` |
 
 뉴스 목록에는 `news.json` 의 수동 항목 외에, 최근 2년 논문·경력에서 자동 파생된 ‘실적 기반’ 항목이 함께 표시됩니다(`lib/content.ts` `derivedNews`). 원하지 않으면 해당 함수 호출을 제거하세요.
@@ -110,7 +112,7 @@ scripts/
 - 논문(journal)의 저자·DOI·URL 은 연구실 검증표 「이현우_교수_논문_저자.xlsx」(2026-11-06, 1차)에서 가져와 표시 — 61편 저자, 38편 DOI(2026-11-09 연구실 확인으로 j51 DOI 추가 — 현재 39편), DOI 가 없는 21편은 KCI·RISS 등 논문 페이지 링크, 미검증 1편(j27)은 비움. DOI 가 확인되지 않은 항목의 DOI 는 임의로 채우지 않음. 권·호·페이지와 학술발표의 저자·DOI 는 자료가 없어 표시하지 않음. 저역서는 확인된 `authors` 가 있을 때만 /books 카드에 한 줄 표시(현재 b03 『상명학습전략』을 뺀 8권).
 - 교수 개인 실적(`scope: professor`)과 연구실 공동 실적(`scope: lab`)을 데이터에서 구분. 현재 데이터는 모두 교수 개인 실적. 논문 목록 + 상세 칸의 '귀속' 줄은 연구실 요청(2026-11-09)으로 화면에서 뺐음(데이터의 `scope` 는 유지).
 - 뉴스의 예시 항목은 ‘예시’ 배지로 구분. 논문·저역서에서 자동 생성한 소식은 /news 에만 표시하고, 경력(보임) 소식은 만들지 않음.
-- Contact 폼은 **메일로 보내기** 방식입니다(2026-11-15 연구실 요청). `content/site.ts` 의 `email` 이 있으면 보내기 버튼이 방문자의 메일 앱을 열고 받는 주소·제목·본문을 채웁니다. 실제 발송은 방문자가 메일 앱에서 보내기를 눌러야 이루어지므로 화면은 전송 완료라고 표시하지 않으며, 메일 앱이 열리지 않는 환경을 위해 정리된 내용·복사 버튼·받는 주소를 함께 보여 줍니다. 지금 `email` 은 연구실 요청으로 넣은 **예시(가상) 주소** `leadailab@example.com` 입니다 — example.com 은 예시용으로 예약된 도메인이라 이 주소로 보낸 메일은 배달되지 않습니다. 화면에서는 주소 옆에 '예시' 배지가 붙고 푸터에는 싣지 않습니다(`emailIsSample: true`). **실제 문의를 받기 전에 반드시 실제 주소로 바꾸세요.** 메일 앱 없이 사이트에서 바로 발송하려면 전송 서버(Formspree 같은 폼 서비스나 서버리스 함수)가 필요합니다: `ContactForm` 의 `onSubmit` prop 에 전송 함수를 넘기면 보내는 중·완료·오류 상태가 작동합니다.
+- Contact 폼은 **메일로 보내기** 방식입니다(2026-11-15 연구실 요청). `content/site.ts` 의 `email` 이 있으면 보내기 버튼이 방문자의 메일 앱을 열고 받는 주소·제목·본문을 채웁니다. 실제 발송은 방문자가 메일 앱에서 보내기를 눌러야 이루어지므로 화면은 전송 완료라고 표시하지 않으며, 메일 앱이 열리지 않는 환경을 위해 정리된 내용·복사 버튼·받는 주소를 함께 보여 줍니다. 지금 `email` 은 연구실 요청으로 넣은 **예시(가상) 주소** `leadailab@example.com` 입니다 — example.com 은 예시용으로 예약된 도메인이라 이 주소로 보낸 메일은 배달되지 않습니다. 화면에서는 주소 옆에 '예시' 배지가 붙고 푸터에는 싣지 않습니다(`emailIsSample: true`). **실제 문의를 받기 전에 반드시 실제 주소로 바꾸세요.** **자동 발송**(2026-11-15 연구실이 Google 계정 방식을 선택): `content/site.ts` 의 `contactEndpoint` 에 Google Apps Script 웹 앱 주소를 넣으면 보내기 버튼이 그 주소로 내용을 보내고, 스크립트(`contact-mail/Code.gs`)가 연구실 메일로 발송합니다. 화면은 스크립트가 보냈다고 답했을 때만 전송 완료를 표시하고, 실패하면 입력 내용을 그대로 둔 채 다시 보내기·메일 앱·내용 복사·전화를 안내합니다. 자동 발송을 켠 뒤에는 예시 주소로 메일 앱을 열지 않습니다(배달되지 않는 주소라 문의가 사라지므로). 지금 `contactEndpoint` 는 `null`(꺼짐)이며, 웹 앱 주소는 연구실이 Google 계정에 스크립트를 배포해 받은 값만 넣습니다. 설정 방법: [docs/문의-자동발송-설정.md](docs/문의-자동발송-설정.md). 다른 전송 서버를 붙이려면 `ContactForm` 의 `onSubmit` prop 에 전송 함수를 넘깁니다.
 
 ## 접근성·모션
 
@@ -126,5 +128,5 @@ scripts/
 - **같은 문구를 한 화면에서 되풀이하지 않습니다.** LEAD 의 의미(Learning Experience, Analytics & Design)는 Home 첫 화면과 푸터, About 에서만 밝히고, 헤더 로고 아래에는 소속(Sangmyung University)만 둡니다. 국문 슬로건은 Home 첫 화면과 About › Vision 에 한 번씩.
 - **한글 제목 문구**는 `components/ui/Phrases.tsx` 로 쉼표 단위 구절을 묶어, 줄이 구절 사이에서 먼저 바뀌게 합니다.
 - **맨 위로 버튼**은 푸터가 올라오면 숨고, 푸터 맨 아래의 Back to top 링크가 같은 일을 합니다(떠 있는 버튼이 푸터 글자를 가리지 않도록).
-- **페이지 머리(PageHero)** 는 구분선 아래를 2단으로 나눕니다 — 국문 제목은 영문 제목과 같은 왼쪽 선(1–4단), 설명·경로는 5단부터(섹션 헤더와 같은 단 구성). 국문 제목이 없는 페이지(소식 상세·인물 프로필)는 설명·경로가 왼쪽 선에서 시작합니다. Home 의 구성원 미리보기 카드도 제목과 같은 왼쪽 선에서 시작합니다.
+- **페이지 머리(PageHero)** 는 구분선 아래를 2단으로 나눕니다 — 국문 제목은 영문 제목과 같은 왼쪽 선(1–4단), 설명·경로는 5단부터(섹션 헤더와 같은 단 구성). 국문 제목이 없는 페이지(소식 상세·인물 프로필)는 설명·경로가 왼쪽 선에서 시작합니다. Home 의 구성원 미리보기 카드(지금은 `homeShowPeople: false` 로 숨김)도 켜면 제목과 같은 왼쪽 선에서 시작합니다.
 - **People** 은 과정별 묶음 이름을 왼쪽 단에, 카드를 오른쪽 단(3열)에 둡니다. 묶음 이름과 같은 과정 표기는 카드에서 생략합니다. **소식 상세**는 글 제목이 가장 큰 제목입니다.

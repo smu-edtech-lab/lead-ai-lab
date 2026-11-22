@@ -34,6 +34,14 @@ export const site = {
   email: 'leadailab@example.com' as string | null,
   /** true 면 화면에서 주소 옆에 '예시' 배지를 붙이고, 푸터에는 주소를 싣지 않습니다 */
   emailIsSample: true as boolean,
+  /** Contact 문의 자동 발송 주소 — Google Apps Script 웹 앱 주소(https://script.google.com/macros/s/…/exec).
+   *  값이 있으면 문의 폼의 보내기 버튼이 이 주소로 내용을 보내고, 스크립트(contact-mail/Code.gs)가 연구실 메일로 발송합니다.
+   *  null 이면 자동 발송 없이 위 email 로 방문자의 메일 앱을 여는 방식으로 동작합니다.
+   *  만드는 방법: docs/문의-자동발송-설정.md. 이 주소는 방문자 브라우저에 그대로 보이는 값이라 비밀이 아닙니다(받는 메일 주소는 스크립트 안에만 있습니다). */
+  contactEndpoint: null as string | null,
+  /** Home 의 People 미리보기(구성원 카드 최대 4장) 표시 여부 — 2026-11-22 연구실 요청으로 숨겼습니다.
+   *  true 로 바꾸면 Home 에 다시 나옵니다. People 메뉴와 People 페이지·개인 상세 페이지·검색은 이 값과 상관없이 그대로 보입니다. */
+  homeShowPeople: false as boolean,
   /** 배포 URL — 메타데이터·사이트맵에 사용. 배포 시 NEXT_PUBLIC_SITE_URL 로 덮어씀 */
   url: process.env.NEXT_PUBLIC_SITE_URL || 'https://lab.example.ac.kr',
   /** 첨부 실적 문서 기준일 */

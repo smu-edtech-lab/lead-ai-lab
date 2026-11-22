@@ -1,6 +1,6 @@
 {
   "meta": {
-    "note": "실제 구성원·졸업생 명단은 아직 제공되지 않았습니다. 항목을 추가하면 People 페이지와 Home 미리보기에 자동으로 표시됩니다. members/alumni 의 isSample: true 항목은 연구실이 가상 인물 사진을 직접 제공하며 요청해 넣은 레이아웃 확인용 가상 인물(가상 사진·가상 정보)이며, 화면에 '예시' 배지와 안내문이 붙고 예시 구성원의 상세 페이지는 색인·sitemap 에서 제외됩니다. 실제 명단이 확정되면 예시 항목을 지우세요.",
+    "note": "실제 구성원·졸업생 명단은 아직 제공되지 않았습니다. 항목을 추가하면 People 페이지에 자동으로 표시됩니다(Home 의 구성원 미리보기는 2026-11-22 연구실 요청으로 꺼 둠 — content/site.ts 의 homeShowPeople). members/alumni 의 isSample: true 항목은 연구실이 가상 인물 사진을 직접 제공하며 요청해 넣은 레이아웃 확인용 가상 인물(가상 사진·가상 정보)이며, 화면에 '예시' 배지와 안내문이 붙고 예시 구성원의 상세 페이지는 색인·sitemap 에서 제외됩니다. 실제 명단이 확정되면 예시 항목을 지우세요.",
     "schema": {
       "members[]": "{ slug, name, nameEn?, role: 'phd'|'master'|'undergrad'|'researcher'|'other', roleLabel?, interests: string[], areas?: AreaId[], email?, photo?, bio?, joined?, research?: Entry[], projects?: ProjectEntry[], awards?: Entry[], history?: Entry[], isSample? }",
       "alumni[]": "{ slug, name, nameEn?, degree: 'phd'|'master', graduatedYear, thesis?, areas?: AreaId[], affiliation?, photo?, research?: Entry[], projects?: ProjectEntry[], awards?: Entry[], history?: Entry[], isSample? }",
