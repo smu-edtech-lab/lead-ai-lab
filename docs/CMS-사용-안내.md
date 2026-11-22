@@ -303,6 +303,7 @@
 | 방문자 | 없음 | 공개 사이트 보기. `/admin` 에 들어와도 로그인 화면만 보임 |
 | 초대받지 않은 GitHub 사용자 | 없음 (Read) | 로그인해도 “이 저장소를 고칠 권한이 없습니다” 안내만 보이고 들어갈 수 없음 |
 | **편집자** | **Write** (협업자) | 관리자 화면의 모든 메뉴에서 추가·수정·삭제·순서 바꾸기 후 바로 게시 |
+| **검토 요청자** (교수님 등) | 없음 — GitHub 계정 없이 **검토 요청 비밀번호**로 들어옴 | 편집자와 같은 화면에서 고치지만 게시 대신 검토 요청을 보냄. 담당자가 확인·Merge 해야 반영 ([검토-요청-안내.md](검토-요청-안내.md)) |
 | **저장소 관리자** | 저장소 **Admin** 또는 조직 **Owner** | 편집자 일 전부 + 편집자 초대·제거, 저장소 설정, 보호 규칙, 로그인 설정 관리 |
 
 - 편집자끼리는 권한 차이가 없습니다. 관리자 승인 단계도 두지 않았습니다(2026-11-10 연구실 결정).
@@ -333,8 +334,9 @@
 |---|---|---|---|
 | **연구실 GitHub 조직** `smu-edtech-lab` | 저장소·사이트 전체의 주인. 조직 소유자(Owner)가 편집자 초대·제거, 설정을 맡음 | 조직 소유자 — **2명 이상** 권장 | 소유자 각자의 GitHub 비밀번호·2단계 인증 (본인만) |
 | **편집자 각자의 GitHub 계정** | 관리자 화면 로그인 | 편집자 본인 | 본인 비밀번호 (공유 금지) |
-| **GitHub App** `LEAD AI Lab CMS` | 로그인한 사람이 “이 저장소의 콘텐츠만” 고치도록 권한을 좁힘 | 조직 소유로 만듦 (설정 안내 3단계) | Client ID(공개해도 됨), **client secret**(Cloudflare 에만 넣음). 설치에 필요해 만든 private key 는 쓰지 않으며 파일은 보관하지 않음 |
-| **Cloudflare 계정**과 Worker `lead-ai-lab-cms-auth` | GitHub 로그인 결과를 관리자 화면으로 돌려주는 중계 서버 (`cms-auth/worker.js`) | 지금은 홈페이지 담당자의 개인 계정. **연구실 공용 이메일 계정 권장** | client secret 을 보관. Cloudflare 비밀번호 |
+| **GitHub App** `LEAD AI Lab CMS` | 로그인한 사람이 “이 저장소의 콘텐츠만” 고치도록 권한을 좁힘 | 조직 소유로 만듦 (설정 안내 3단계) | Client ID(공개해도 됨), **client secret**(Cloudflare 에만 넣음). 검토 요청을 켜면 **private key** 도 Cloudflare 에만 넣어 씀 (내려받은 파일은 보관하지 않음) |
+| **Cloudflare 계정**과 Worker `lead-ai-lab-cms-auth` | GitHub 로그인 결과를 관리자 화면으로 돌려주는 중계 서버 (`cms-auth/worker.js`) | 지금은 홈페이지 담당자의 개인 계정. **연구실 공용 이메일 계정 권장** | client secret 을 보관 (검토 요청을 켜면 private key·검토 요청 비밀번호도). Cloudflare 비밀번호 |
+| **검토 요청 비밀번호** `REQUEST_PASSCODE` | GitHub 계정이 없는 분(교수님 등)이 관리자 화면에 들어와 검토 요청을 보냄 ([설정 안내 14장](CMS-설정-안내.md#14-검토-요청-켜기)) | 홈페이지 담당자 | **비밀번호 자체가 비밀값.** Cloudflare 에만 넣고 교수님께 직접 전함. 바꾸면 들어와 있던 사람도 다시 들어와야 함 |
 | 저장소 변수 `CMS_AUTH_URL` | 관리자 화면이 중계 서버 주소를 알게 함 | 저장소 관리자 | 비밀 아님 (Worker 주소) |
 | 비상용 토큰 (Fine-grained personal access token) | 중계 서버가 없거나 고장 났을 때 임시 로그인 | 쓰는 사람 각자 | **토큰 자체가 비밀번호입니다.** 짧게(7일 등) 만들고 남에게 보내거나 문서에 적지 않음 |
 
@@ -344,6 +346,7 @@
   1. GitHub App 설정에서 새 client secret 을 만듭니다.
   2. Cloudflare Worker 의 `GITHUB_CLIENT_SECRET` 을 새 값으로 바꿉니다.
   3. GitHub App 설정에서 예전 secret 을 지웁니다.
+- private key 나 검토 요청 비밀번호가 새었다고 의심되면: GitHub App 설정에서 새 private key 를 만들어 Worker 의 `GITHUB_APP_PRIVATE_KEY` 를 바꾸고 예전 key 를 지운 뒤, `REQUEST_PASSCODE` 도 바꿉니다.
 
 ### 연구실 조직 `smu-edtech-lab`
 
@@ -364,6 +367,7 @@
 - [ ] 떠나는 편집자 **Remove**, 새 편집자 초대 (4장)
 - [ ] Cloudflare 계정: 연구실 공용 계정이면 로그인 방법을 넘겨줌. 개인 계정이면 새 담당자를 Cloudflare 계정 구성원으로 초대
 - [ ] GitHub App: 조직 소유로 만들었다면 넘길 것 없음. 개인 계정 소유로 만들었다면 조직으로 넘김(App 설정 → **Advanced** → **Transfer ownership**)
+- [ ] 검토 요청을 켜 두었다면: Worker 의 `REQUEST_REVIEWERS` 를 새 담당자 아이디로 바꾸고, 필요하면 `REQUEST_PASSCODE` 도 바꿔 교수님께 새로 알림 ([검토-요청-안내.md 9장](검토-요청-안내.md#9-비밀번호-관리-담당자))
 - [ ] Contact 문의 자동 발송을 켜 두었다면: 발송 스크립트가 있는 Google 계정을 넘겨받거나, 새 계정에 다시 만들고 주소를 바꿈 ([문의-자동발송-설정.md](문의-자동발송-설정.md) 9장)
 - [ ] 이 문서와 [설정 안내](CMS-설정-안내.md)의 위치를 알려 줌 (저장소 `docs/` 폴더)
 - [ ] 관리자 화면에 로그인해 보고, 소식 하나를 고쳐 게시해 사이트에 반영되는지 확인

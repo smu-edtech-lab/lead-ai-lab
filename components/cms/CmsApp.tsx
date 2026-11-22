@@ -9,11 +9,13 @@
  *   (논문·저역서·학술발표·연구 과제도 같은 모양: #/journals/new · #/journals/edit/<번호> …)
  *
  * 저장소 쓰기 권한이 있는 사람(편집자)은 모두 같은 권한으로, 바뀐 내용을 확인한 뒤 바로 게시합니다.
+ * GitHub 계정이 없는 사람(교수님 등)은 검토 요청 비밀번호로 들어와, 같은 화면에서 게시 대신 검토 요청을 보냅니다(lib/cms/request.ts).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { cmsConfig, repoParts } from '@/lib/cms/config';
-import { clearToken, getStoredToken, takeAuthResult } from '@/lib/cms/auth';
+import { clearRequestSession, clearToken, getRequestSession, getStoredToken, takeAuthResult, type RequestSession } from '@/lib/cms/auth';
 import { GitHubBackend } from '@/lib/cms/github';
+import { RequestBackend } from '@/lib/cms/request';
 import { collections, isCollectionId } from '@/lib/cms/collections';
 import { errorMessage, isCmsError, type CmsUser, type RepoBackend } from '@/lib/cms/types';
 import { CmsProvider, useCms } from './context';
@@ -68,11 +70,22 @@ export function CmsApp() {
     }
   }, []);
 
-  const startMock = useCallback(async () => {
+  const startRequest = useCallback(async (s: RequestSession) => {
+    const parts = repoParts();
+    if (!parts || !cmsConfig.authUrl) {
+      clearRequestSession();
+      setAuth({ status: 'signed-out', error: 'CMS 저장소·중계 서버 설정이 없습니다. 배포 설정을 확인해 주세요.' });
+      return;
+    }
+    const backend = new RequestBackend(s.token, cmsConfig.authUrl, parts.owner, parts.name, cmsConfig.branch, s.name);
+    setAuth({ status: 'ready', backend, user: await backend.getUser() });
+  }, []);
+
+  const startMock = useCallback(async (requester = false) => {
     const MockBackend = await loadMock();
     if (!MockBackend) return;
-    window.sessionStorage.setItem(MOCK_FLAG, '1');
-    const backend = new MockBackend();
+    window.sessionStorage.setItem(MOCK_FLAG, requester ? 'request' : '1');
+    const backend = new MockBackend({ requester });
     setAuth({ status: 'ready', backend, user: await backend.getUser() });
   }, []);
 
@@ -86,17 +99,28 @@ export function CmsApp() {
       setAuth({ status: 'signed-out', error: `GitHub 로그인이 완료되지 않았습니다: ${error}` });
       return;
     }
-    if (process.env.NODE_ENV === 'development' && window.sessionStorage.getItem(MOCK_FLAG) === '1') {
-      void startMock();
+    const mock = process.env.NODE_ENV === 'development' ? window.sessionStorage.getItem(MOCK_FLAG) : null;
+    if (mock === '1' || mock === 'request') {
+      void startMock(mock === 'request');
       return;
     }
-    const t = token ?? getStoredToken();
+    if (token) {
+      void startGitHub(token);
+      return;
+    }
+    const rs = getRequestSession();
+    if (rs) {
+      void startRequest(rs);
+      return;
+    }
+    const t = getStoredToken();
     if (t) void startGitHub(t);
     else setAuth({ status: 'signed-out' });
-  }, [startGitHub, startMock]);
+  }, [startGitHub, startMock, startRequest]);
 
   const signOut = useCallback((message?: string) => {
     clearToken();
+    clearRequestSession();
     try {
       window.sessionStorage.removeItem(MOCK_FLAG);
     } catch {
@@ -119,7 +143,10 @@ export function CmsApp() {
         onToken={(t) => {
           void startGitHub(t);
         }}
-        onMock={cmsConfig.mockEnabled ? () => void startMock() : undefined}
+        onRequest={(s) => {
+          void startRequest(s);
+        }}
+        onMock={cmsConfig.mockEnabled ? (requester) => void startMock(requester) : undefined}
       />
     );
   }
@@ -130,7 +157,7 @@ export function CmsApp() {
         onResetMock={
           auth.backend.kind === 'mock'
             ? () => {
-                void resetMock().then(() => startMock());
+                void resetMock().then(() => startMock(auth.user.role === 'requester'));
               }
             : undefined
         }

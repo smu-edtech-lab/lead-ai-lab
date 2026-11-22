@@ -50,12 +50,15 @@ export function ChangeTable({
   after,
   projects,
   images,
+  request = false,
 }: {
   def: CollectionDef;
   before: Item | null;
   after: Item;
   projects: ProjectRef[];
   images: Record<string, string>;
+  /** 검토 요청 모드 — '게시할 내용' 대신 '요청할 내용' */
+  request?: boolean;
 }) {
   const rows = [{ name: 'slug', label: '사이트 주소', type: 'text' } as FieldDef, ...def.fields]
     .map((f) => ({ f, old: before?.[f.name], now: after[f.name] }))
@@ -67,7 +70,7 @@ export function ChangeTable({
         <tr>
           <th scope="col">칸</th>
           {before ? <th scope="col">지금 사이트</th> : null}
-          <th scope="col">{before ? '게시할 내용' : '새로 올릴 내용'}</th>
+          <th scope="col">{before ? (request ? '요청할 내용' : '게시할 내용') : '새로 올릴 내용'}</th>
         </tr>
       </thead>
       <tbody>

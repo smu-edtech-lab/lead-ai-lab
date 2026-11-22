@@ -39,24 +39,26 @@ export class GitHubBackend implements RepoBackend {
   readonly repoLabel: string;
   readonly webUrl: string;
 
+  /** apiBase: GitHub API 주소 — 검토 요청 모드는 로그인 중계 서버가 읽기를 대신 해 줌(request.ts) */
   constructor(
     private token: string,
     private owner: string,
     private repo: string,
     readonly branch: string,
+    private apiBase: string = API,
   ) {
     this.repoLabel = `${owner}/${repo}`;
     this.webUrl = `https://github.com/${owner}/${repo}`;
   }
 
-  private get base() {
+  protected get base() {
     return `/repos/${this.owner}/${this.repo}`;
   }
 
-  private async req<T>(method: string, path: string, body?: unknown): Promise<T> {
+  protected async req<T>(method: string, path: string, body?: unknown): Promise<T> {
     let res: Response;
     try {
-      res = await fetch(`${API}${path}`, {
+      res = await fetch(`${this.apiBase}${path}`, {
         method,
         cache: 'no-store',
         headers: {

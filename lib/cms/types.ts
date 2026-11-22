@@ -8,8 +8,12 @@
  * 저장소에 접근하는 부분은 RepoBackend 하나로 감싸 두어, 실제 GitHub(github.ts)와 개발용 체험 저장소(mock.ts)를 바꿔 끼울 수 있습니다.
  */
 
-/** editor: 저장소 쓰기 권한(Write 이상)이 있어 바뀐 내용을 확인한 뒤 바로 게시 / none: 쓰기 권한 없음 */
-export type Role = 'editor' | 'none';
+/**
+ * editor: 저장소 쓰기 권한(Write 이상)이 있어 바뀐 내용을 확인한 뒤 바로 게시
+ * requester: GitHub 계정 없이 검토 요청 비밀번호로 들어온 사람(교수님 등) — 고친 내용이 검토 요청(Pull Request)으로 가고, 담당자가 반영
+ * none: 쓰기 권한 없음
+ */
+export type Role = 'editor' | 'requester' | 'none';
 
 export interface CmsUser {
   login: string;
@@ -59,6 +63,37 @@ export interface ChangeInfo {
   url: string;
 }
 
+/** 검토 요청으로 보낼 내용 — 로그인 중계 서버(cms-auth/worker.js /request/submit)가 Pull Request(메모만이면 Issue)로 만듦 */
+export interface RequestInput {
+  /** 바뀐 내용을 얹을 커밋 (main 의 최신 커밋) */
+  base: string;
+  changes: FileChange[];
+  title: string;
+  /** "소식 수정 — 제목" 같은 한 줄 설명 */
+  lines: string[];
+  /** 바뀐 칸 표 (Markdown) */
+  details: string;
+  /** 담당자에게 남길 말 */
+  memo: string;
+}
+
+export interface RequestResult {
+  kind: 'pull' | 'issue';
+  number: number;
+  /** GitHub 에서 보기 (체험 모드는 빈 문자열) */
+  url: string;
+}
+
+/** 처음 화면의 '보낸 요청' 한 줄 */
+export interface RequestInfo {
+  title: string;
+  /** open: 검토 기다림 / merged: 사이트에 반영함 / closed: 반영하지 않음(메모 요청은 처리 끝) */
+  state: 'open' | 'merged' | 'closed';
+  kind: 'pull' | 'issue';
+  at: string;
+  url: string;
+}
+
 export interface RepoBackend {
   readonly kind: 'github' | 'mock';
   /** 저장소 이름 (화면 표시용, 예: "smu-edtech-lab/lead-ai-lab") */
@@ -87,6 +122,10 @@ export interface RepoBackend {
   latestDeploy(): Promise<DeployInfo | null>;
   /** 데이터 파일을 바꾼 최근 커밋 (새것부터) */
   recentChanges(limit: number): Promise<ChangeInfo[]>;
+  /** 검토 요청 보내기 — 검토 요청 모드(requester)에서만 있음 */
+  submitRequest?(input: RequestInput): Promise<RequestResult>;
+  /** 검토 요청 모드로 보낸 요청들 (새것부터) */
+  myRequests?(limit: number): Promise<RequestInfo[]>;
 }
 
 export type CmsErrorCode =

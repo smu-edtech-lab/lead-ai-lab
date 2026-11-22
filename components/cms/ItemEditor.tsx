@@ -1,8 +1,10 @@
 'use client';
-/** 항목 편집 — 입력 폼 + 미리보기 → '확인하고 게시' 를 누르면 바뀐 칸을 보여 주고, 확인하면 바로 게시합니다 */
+/**
+ * 항목 편집 — 입력 폼 + 미리보기 → '확인하고 게시' 를 누르면 바뀐 칸을 보여 주고, 확인하면 바로 게시합니다.
+ * 검토 요청 모드(GitHub 계정 없이 들어온 사람)는 같은 화면에서 게시 대신 '요청 보내기' — 담당자가 확인한 뒤 반영합니다.
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { collections, itemsOf, keyOf, moveTargets, nextKey, toPublicPath, toRepoPath, type CollectionId, type FieldDef, type Item } from '@/lib/cms/collections';
-import { publishDirect } from '@/lib/cms/engine';
 import { dataUrl } from '@/lib/cms/encoding';
 import { findItem, mergeItem, normalizeItem, sameValue, type Conflict, type Op } from '@/lib/cms/ops';
 import { validateItem, type FieldErrors } from '@/lib/cms/validate';
@@ -61,7 +63,7 @@ function shortValue(f: FieldDef, v: unknown): string {
  */
 export function ItemEditor({ collection, itemKey, moveFrom = null }: { collection: CollectionId; itemKey: string | null; moveFrom?: string | null }) {
   const def = collections[collection];
-  const { snapshot, user, backend, navigate, notify, fail, reload, setDirty, watchDeploy } = useCms();
+  const { snapshot, navigate, notify, fail, reload, setDirty, submitOps, requestMode: rm } = useCms();
   const move = moveFrom && def.moveFrom ? def.moveFrom : null;
   const srcDef = move ? collections[move.collection] : null;
   const isMove = move !== null;
@@ -83,6 +85,8 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   const [conflict, setConflict] = useState<{ list: Conflict[]; ops: Op[]; kind: 'save' | 'delete' } | null>(null);
   const [restorable, setRestorable] = useState<{ draft: Item; at: number } | null>(null);
   const [askDelete, setAskDelete] = useState(false);
+  /** 검토 요청 모드: 담당자에게 남길 말 */
+  const [memo, setMemo] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
 
   /* 주소(slug) — 새 항목은 손대기 전까지 이름·날짜로 자동 제안 */
@@ -236,10 +240,14 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
     setSaving(kind);
     setConflict(null);
     try {
-      const r = await publishDirect(backend, user, ops, { force });
-      const done = kind === 'delete' ? '삭제했습니다' : isMove ? `${josa(def.itemLabel, '으로', '로')} 옮겼습니다` : '게시했습니다';
-      notify(`${done}. 1~2분 뒤 사이트에 반영됩니다.${r.viaPull ? ` (보호 규칙에 따라 #${r.viaPull} 로 반영)` : ''}`);
-      watchDeploy();
+      const r = await submitOps(ops, { force, memo });
+      if (r.mode === 'request') {
+        notify(kind === 'delete' ? '삭제 요청을 보냈습니다. 담당자가 확인하면 사이트에서 지워집니다.' : '검토 요청을 보냈습니다. 담당자가 확인하면 사이트에 반영됩니다.');
+      } else {
+        const done = kind === 'delete' ? '삭제했습니다' : isMove ? `${josa(def.itemLabel, '으로', '로')} 옮겼습니다` : '게시했습니다';
+        notify(`${done}. 1~2분 뒤 사이트에 반영됩니다.${r.viaPull ? ` (보호 규칙에 따라 #${r.viaPull} 로 반영)` : ''}`);
+      }
+      setMemo('');
       clearDraft();
       setChanged(false);
       setDirty(false);
@@ -472,7 +480,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
       {restorable ? (
         <Notice
           tone="info"
-          title={`게시하지 않은 수정 내용이 있습니다 (${timeAgo(new Date(restorable.at).toISOString())})`}
+          title={`${rm ? '보내지 않은' : '게시하지 않은'} 수정 내용이 있습니다 (${timeAgo(new Date(restorable.at).toISOString())})`}
           actions={
             <>
               <Btn
@@ -576,7 +584,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
           <div className="cms-sticky">
             <h2 className="cms-h3">미리보기</h2>
             <ItemPreview collection={collection} item={previewItem} images={env.images} />
-            <p className="cms-help">공개 사이트와 같은 모양으로 그린 미리보기입니다. 게시한 뒤 1~2분이 지나야 실제 사이트에 보입니다.</p>
+            <p className="cms-help">공개 사이트와 같은 모양으로 그린 미리보기입니다. {rm ? '담당자가 반영한 뒤' : '게시한 뒤'} 1~2분이 지나야 실제 사이트에 보입니다.</p>
           </div>
         </aside>
       </div>
@@ -592,13 +600,13 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
           </div>
           <div className="cms-row cms-actionbar__right">
             <span className={showErrors && errorCount ? 'cms-actionbar__hint is-error' : 'cms-actionbar__hint'}>
-              {showErrors && errorCount ? `확인할 칸 ${errorCount}개` : changed ? '게시하지 않은 수정이 있습니다' : ''}
+              {showErrors && errorCount ? `확인할 칸 ${errorCount}개` : changed ? (rm ? '보내지 않은 수정이 있습니다' : '게시하지 않은 수정이 있습니다') : ''}
             </span>
             <Btn variant="ghost" onClick={() => navigate(isMove ? sourcePath : collection)} disabled={saving !== null}>
               취소
             </Btn>
             <Btn variant="primary" type="submit" form="cms-form" busy={saving === 'save'} disabled={saving !== null || imageBusy !== null}>
-              {isMove ? '확인하고 옮기기' : '확인하고 게시'}
+              {isMove ? (rm ? '확인하고 옮기기 요청' : '확인하고 옮기기') : rm ? '확인하고 요청 보내기' : '확인하고 게시'}
             </Btn>
           </div>
         </div>
@@ -607,7 +615,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
       <Dialog
         open={confirming !== null}
         wide
-        title={isMove ? `${josa(def.itemLabel, '으로', '로')} 옮길까요?` : isNew ? `새 ${josa(def.itemLabel, '을', '를')} 게시할까요?` : '바뀐 내용을 확인해 주세요'}
+        title={isMove ? `${josa(def.itemLabel, '으로', '로')} 옮길까요?` : isNew ? `새 ${josa(def.itemLabel, '을', '를')} ${rm ? '요청할까요?' : '게시할까요?'}` : '바뀐 내용을 확인해 주세요'}
         onClose={() => saving === null && setConfirming(null)}
         actions={
           <>
@@ -615,7 +623,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
               돌아가서 고치기
             </Btn>
             <Btn variant="primary" busy={saving === 'save'} disabled={saving !== null || changeCount === 0} onClick={() => confirming && void publish(confirming.ops, 'save')}>
-              {isMove ? '옮기기' : '게시하기'}
+              {isMove ? (rm ? '옮기기 요청 보내기' : '옮기기') : rm ? '요청 보내기' : '게시하기'}
             </Btn>
           </>
         }
@@ -623,26 +631,33 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
         {confirming ? (
           <>
             <p className="cms-lead cms-dialog__lead">
-              {move && srcDef && source
-                ? `「${srcDef.title(source)}」 — ${srcDef.label} 목록에서 빠지고, 아래 내용으로 ${def.label} 목록에 들어갑니다. 1~2분 뒤 공개 사이트에 반영되고, 누가 옮겼는지 변경 기록에 남습니다.`
-                : changeCount === 0
-                  ? '바뀐 내용이 없어 게시할 것이 없습니다.'
-                  : `${isNew ? '아래 내용으로' : `${changeCount}개 칸이 바뀝니다.`} 게시하면 1~2분 뒤 공개 사이트에 반영되고, 누가 게시했는지 변경 기록에 남습니다.`}
+              {rm
+                ? move && srcDef && source
+                  ? `「${srcDef.title(source)}」 — 담당자가 확인하면 ${srcDef.label} 목록에서 빠지고, 아래 내용으로 ${def.label} 목록에 들어갑니다.`
+                  : changeCount === 0
+                    ? '바뀐 내용이 없어 보낼 것이 없습니다.'
+                    : `${isNew ? '아래 내용으로' : `${changeCount}개 칸이 바뀝니다.`} 요청을 보내면 담당자가 확인한 뒤 사이트에 반영합니다.`
+                : move && srcDef && source
+                  ? `「${srcDef.title(source)}」 — ${srcDef.label} 목록에서 빠지고, 아래 내용으로 ${def.label} 목록에 들어갑니다. 1~2분 뒤 공개 사이트에 반영되고, 누가 옮겼는지 변경 기록에 남습니다.`
+                  : changeCount === 0
+                    ? '바뀐 내용이 없어 게시할 것이 없습니다.'
+                    : `${isNew ? '아래 내용으로' : `${changeCount}개 칸이 바뀝니다.`} 게시하면 1~2분 뒤 공개 사이트에 반영되고, 누가 게시했는지 변경 기록에 남습니다.`}
             </p>
             {dropped.length ? <p className="cms-help cms-dialog__lead">옮기지 않는 칸: {dropped.join(', ')}</p> : null}
             <div className={def.previewWide ? 'cms-confirm cms-confirm--stack' : 'cms-confirm'}>
-              <ChangeTable def={def} before={base} after={confirming.item} projects={snapshot?.projects ?? []} images={confirming.images} />
+              <ChangeTable def={def} before={base} after={confirming.item} projects={snapshot?.projects ?? []} images={confirming.images} request={rm} />
               <div className="cms-confirm__preview">
                 <ItemPreview collection={collection} item={confirming.item} images={confirming.images} />
               </div>
             </div>
+            {rm && changeCount > 0 ? <MemoField value={memo} onChange={setMemo} /> : null}
           </>
         ) : null}
       </Dialog>
 
       <Dialog
         open={askDelete}
-        title={base ? `「${def.title(base)}」 ${josa(def.itemLabel, '을', '를')} 삭제할까요?` : '삭제할까요?'}
+        title={base ? `「${def.title(base)}」 ${josa(def.itemLabel, '을', '를')} ${rm ? '삭제하도록 요청할까요?' : '삭제할까요?'}` : '삭제할까요?'}
         onClose={() => setAskDelete(false)}
         actions={
           <>
@@ -650,13 +665,13 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
               취소
             </Btn>
             <Btn variant="danger" onClick={remove}>
-              삭제하기
+              {rm ? '삭제 요청 보내기' : '삭제하기'}
             </Btn>
           </>
         }
       >
         <ul className="cms-dialog__list">
-          <li>1~2분 뒤 공개 사이트에서 사라집니다.</li>
+          <li>{rm ? '담당자가 확인하면 공개 사이트에서 사라집니다.' : '1~2분 뒤 공개 사이트에서 사라집니다.'}</li>
           {ownedFiles.length ? <li>이 {def.itemLabel}의 사진 파일도 함께 지웁니다.</li> : null}
           <li>변경 기록에는 남아서, 필요하면 담당자가 되살릴 수 있습니다.</li>
         </ul>
@@ -665,7 +680,21 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
             편집 화면 오른쪽 위의 ‘{targets[0].moveFrom?.buttonLabel}’를 쓰면 이름·사진·상세 프로필이 {targets[0].label} 목록으로 옮겨집니다.
           </Notice>
         ) : null}
+        {rm ? <MemoField value={memo} onChange={setMemo} placeholder="예: 홈페이지에서 내리기로 했습니다." /> : null}
       </Dialog>
+    </div>
+  );
+}
+
+/** 검토 요청 모드: 담당자에게 남길 말 (요청 글 맨 위에 들어감) */
+export function MemoField({ value, onChange, placeholder = '예: 날짜가 바뀌어 고쳤습니다. 사진은 다음 주에 보내 드릴게요.' }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div className="cms-field cms-memo">
+      <label className="cms-label" htmlFor="cms-req-memo">
+        담당자에게 남길 말 <span className="cms-auto">선택</span>
+      </label>
+      <textarea id="cms-req-memo" className="cms-input cms-textarea" rows={3} maxLength={2000} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <p className="cms-help">요청 내용과 이 메모는 공개 저장소에 올라가 누구나 볼 수 있습니다. 연락처 같은 개인 정보는 적지 마세요.</p>
     </div>
   );
 }

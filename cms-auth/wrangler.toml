@@ -2,12 +2,19 @@
 #   npx wrangler login
 #   npx wrangler deploy --config cms-auth/wrangler.toml
 #   npx wrangler secret put GITHUB_CLIENT_SECRET --config cms-auth/wrangler.toml
+#   검토 요청(설정 안내서 14장)의 비밀값도 명령줄로 넣을 수 있음:
+#   npx wrangler secret put GITHUB_APP_PRIVATE_KEY --config cms-auth/wrangler.toml
+#   npx wrangler secret put REQUEST_PASSCODE --config cms-auth/wrangler.toml
 name = "lead-ai-lab-cms-auth"
 main = "worker.js"
 compatibility_date = "2026-10-01"
+# 대시보드에서만 넣은 값(GITHUB_APP_ID, REQUEST_NAME, REQUEST_REVIEWERS 등)이 명령줄 배포로 지워지지 않도록
+keep_vars = true
 
 [vars]
 # GitHub App 'LEAD AI Lab CMS' 의 Client ID (공개해도 되는 값)와 관리자 화면 주소 (설정 안내서 3·4단계).
 # 대시보드에서 바꾼 값이 있으면 명령줄 배포가 이 값으로 덮어쓰니, 두 곳을 같게 유지하세요.
 GITHUB_CLIENT_ID = "Iv23lipHaxk3hV4jTvY8"
 ALLOWED_RETURN_URLS = "https://smu-edtech-lab.github.io/lead-ai-lab/admin,http://localhost:3000/admin"
+# 검토 요청이 Pull Request 를 만들 저장소 (설정 안내서 14장)
+CMS_REPO = "smu-edtech-lab/lead-ai-lab"

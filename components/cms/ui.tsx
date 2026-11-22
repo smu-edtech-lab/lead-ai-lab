@@ -39,7 +39,7 @@ export function LinkBtn({ href, variant = 'secondary', size = 'm', children, ext
   );
 }
 
-export function Badge({ tone = 'neutral', children }: { tone?: 'neutral' | 'sample' | 'ok' | 'danger' | 'brand'; children: ReactNode }) {
+export function Badge({ tone = 'neutral', children }: { tone?: 'neutral' | 'sample' | 'ok' | 'danger' | 'brand' | 'pending'; children: ReactNode }) {
   return <span className={cx('cms-badge', `cms-badge--${tone}`)}>{children}</span>;
 }
 

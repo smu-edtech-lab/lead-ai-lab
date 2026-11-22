@@ -2,7 +2,6 @@
 /** 항목 목록 — 추가·편집으로 가고, 구성원은 순서를 바꿔 저장합니다 */
 import { useMemo, useState } from 'react';
 import { collectionItems, collections, keyOf, type CollectionId, type Item } from '@/lib/cms/collections';
-import { publishDirect } from '@/lib/cms/engine';
 import { isCmsError } from '@/lib/cms/types';
 import type { Op } from '@/lib/cms/ops';
 import { useCms } from './context';
@@ -11,7 +10,7 @@ import { Badge, Btn, Notice } from './ui';
 
 export function CollectionList({ collection }: { collection: CollectionId }) {
   const def = collections[collection];
-  const { snapshot, navigate, user, backend, notify, fail, reload, watchDeploy, setDirty } = useCms();
+  const { snapshot, navigate, notify, fail, reload, setDirty, submitOps, requestMode: rm } = useCms();
   const items = useMemo(() => {
     const list = collectionItems(snapshot?.files[def.file], def);
     return def.orderable || !def.sort ? list : list.slice().sort(def.sort);
@@ -57,9 +56,8 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
     setSaving(true);
     const ops: Op[] = [{ kind: 'order', collection, keys: order }];
     try {
-      await publishDirect(backend, user, ops, { force });
-      notify('순서를 게시했습니다. 1~2분 뒤 사이트에 반영됩니다.');
-      watchDeploy();
+      const r = await submitOps(ops, { force });
+      notify(r.mode === 'request' ? '순서 변경 요청을 보냈습니다. 담당자가 확인하면 사이트에 반영됩니다.' : '순서를 게시했습니다. 1~2분 뒤 사이트에 반영됩니다.');
       setDirty(false);
       setOrder(null);
       await reload();
@@ -99,12 +97,12 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
                 되돌리기
               </Btn>
               <Btn variant="primary" busy={saving} onClick={() => void saveOrder()}>
-                이 순서로 게시
+                {rm ? '이 순서로 요청 보내기' : '이 순서로 게시'}
               </Btn>
             </>
           }
         >
-          People 페이지에 과정별로 이 순서대로 나옵니다. 게시해야 사이트에 반영됩니다.
+          People 페이지에 과정별로 이 순서대로 나옵니다. {rm ? '요청을 보내면 담당자가 확인한 뒤 반영합니다.' : '게시해야 사이트에 반영됩니다.'}
         </Notice>
       ) : null}
 

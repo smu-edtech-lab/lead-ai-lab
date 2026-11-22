@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { withBasePath } from '@/lib/base-path';
 import { collectionGroups } from '@/lib/cms/collections';
-import { guideUrl } from '@/lib/cms/config';
+import { guideUrl, requestGuideUrl } from '@/lib/cms/config';
 import type { DeployInfo } from '@/lib/cms/types';
 import { useCms } from './context';
 import { Avatar, Notice, Spinner, cx, timeAgo } from './ui';
@@ -73,7 +73,7 @@ function DeployStatus() {
 export function Shell({ children, onSignOut, onResetMock }: { children: ReactNode; onSignOut: () => void; onResetMock?: () => void }) {
   const { user, backend, route, navigate } = useCms();
   const current = route[0] ?? '';
-  const guide = guideUrl();
+  const guide = user.role === 'requester' ? requestGuideUrl() : guideUrl();
   const navLink = (id: string, label: string) => (
     <li key={id || 'home'}>
       <a
@@ -115,6 +115,14 @@ export function Shell({ children, onSignOut, onResetMock }: { children: ReactNod
           </button>
         </div>
       </header>
+
+      {user.role === 'requester' ? (
+        <div className="cms-requestbar" role="note">
+          <span>
+            <strong>검토 요청 모드</strong> — 고친 내용은 바로 게시되지 않고 홈페이지 담당자에게 검토 요청으로 갑니다. 담당자가 반영하기 전까지 목록에는 지금 사이트의 내용이 보입니다.
+          </span>
+        </div>
+      ) : null}
 
       {backend.kind === 'mock' ? (
         <div className="cms-mockbar" role="note">

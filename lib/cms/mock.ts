@@ -9,7 +9,7 @@ import membersData from '@/content/data/members.json';
 import projectsData from '@/content/data/projects.json';
 import publicationsData from '@/content/data/publications.json';
 import { bytesToBase64, utf8ToBase64 } from './encoding';
-import { CmsError, type ChangeInfo, type CmsUser, type DeployInfo, type FileChange, type PullInfo, type RepoBackend } from './types';
+import { CmsError, type ChangeInfo, type CmsUser, type DeployInfo, type FileChange, type PullInfo, type RepoBackend, type RequestInfo, type RequestInput, type RequestResult } from './types';
 
 interface MockCommit {
   sha: string;
@@ -25,6 +25,8 @@ interface MockState {
   commits: Record<string, MockCommit>;
   branches: Record<string, string>;
   pulls: { number: number; head: string; open: boolean }[];
+  /** 체험 검토 요청 모드에서 보낸 요청 */
+  requests?: { number: number; title: string; kind: 'pull' | 'issue'; at: number }[];
   seq: number;
   deployAt: number | null;
 }
@@ -66,8 +68,11 @@ export class MockBackend implements RepoBackend {
   readonly branch = 'main';
   readonly webUrl = '';
   private state: MockState;
+  /** 체험 검토 요청 모드 — GitHub 계정 없이 비밀번호로 들어온 사람처럼 동작 (게시 대신 요청) */
+  private requester: boolean;
 
-  constructor() {
+  constructor(opts: { requester?: boolean } = {}) {
+    this.requester = !!opts.requester;
     const saved = safeSession()?.getItem(STORE_KEY);
     if (saved) {
       try {
@@ -113,6 +118,7 @@ export class MockBackend implements RepoBackend {
   }
 
   async getUser(): Promise<CmsUser> {
+    if (this.requester) return { login: 'demo-request', id: 3, name: '체험 교수님', avatarUrl: '', role: 'requester' };
     return { login: 'demo-editor', id: 2, name: '체험 편집자', avatarUrl: '', role: 'editor' };
   }
 
@@ -211,7 +217,33 @@ export class MockBackend implements RepoBackend {
     return out;
   }
 
+  /** 검토 요청 — 바뀐 파일은 체험 저장소의 요청 브랜치에만 두고 main 은 그대로 (담당자가 반영하기 전 상태) */
+  async submitRequest(input: RequestInput): Promise<RequestResult> {
+    let kind: RequestResult['kind'] = 'issue';
+    if (input.changes.length) {
+      const sha = await this.createCommit({ parent: input.base, changes: input.changes, message: input.title });
+      this.state.branches[`cms-request/${this.state.seq}`] = sha;
+      kind = 'pull';
+    }
+    const list = this.state.requests ?? [];
+    const number = this.state.pulls.length + list.length + 1;
+    this.state.requests = [...list, { number, title: input.title.replace(/^\[CMS\]\s*/, ''), kind, at: Date.now() }];
+    this.save();
+    // 개발할 때 요청 글을 확인할 수 있도록
+    console.info('[체험] 검토 요청', { title: input.title, memo: input.memo, lines: input.lines, details: input.details, files: input.changes.map((c) => c.path) });
+    return { kind, number, url: '' };
+  }
+
+  async myRequests(limit: number): Promise<RequestInfo[]> {
+    return (this.state.requests ?? [])
+      .slice()
+      .reverse()
+      .slice(0, limit)
+      .map((r) => ({ title: r.title, kind: r.kind, state: 'open', at: new Date(r.at).toISOString(), url: '' }));
+  }
+
   async latestDeploy(): Promise<DeployInfo | null> {
+    if (this.requester) return null;
     const at = this.state.deployAt;
     if (!at) return null;
     const done = Date.now() - at > 6000;

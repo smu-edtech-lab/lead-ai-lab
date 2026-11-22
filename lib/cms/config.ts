@@ -20,9 +20,19 @@ export function repoParts(): { owner: string; name: string } | null {
   return owner && name ? { owner, name } : null;
 }
 
-/** 편집자용 사용 안내(docs/홈페이지-관리-가이드.md)를 GitHub 에서 여는 주소 — 저장소 설정이 없으면(체험 모드 등) 빈 문자열 */
+/** 저장소 docs/ 의 문서를 GitHub 에서 여는 주소 (공개 저장소라 GitHub 계정 없이도 열림) — 저장소 설정이 없으면(체험 모드 등) 빈 문자열 */
+function docUrl(file: string): string {
+  return cmsConfig.repo ? `https://github.com/${cmsConfig.repo}/blob/${cmsConfig.branch}/docs/${encodeURIComponent(file)}` : '';
+}
+
+/** 편집자용 사용 안내 (docs/홈페이지-관리-가이드.md) */
 export function guideUrl(): string {
-  return cmsConfig.repo ? `https://github.com/${cmsConfig.repo}/blob/${cmsConfig.branch}/docs/${encodeURIComponent('홈페이지-관리-가이드.md')}` : '';
+  return docUrl('홈페이지-관리-가이드.md');
+}
+
+/** 검토 요청(GitHub 계정 없이 고치기) 안내 (docs/검토-요청-안내.md) */
+export function requestGuideUrl(): string {
+  return docUrl('검토-요청-안내.md');
 }
 
 /** 보호 규칙 때문에 Pull Request 를 거쳐 게시할 때 CMS 가 잠깐 만드는 브랜치 접두어 */

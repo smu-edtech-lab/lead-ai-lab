@@ -11,7 +11,7 @@ import { CMS_BRANCH_PREFIX } from './config';
 import { PROJECTS_FILE, collections, dataFiles, itemsOf, keyOf, toRepoPath } from './collections';
 import { applyOps, assertAssetPath, describeOp, isDataOp, opsTitle, type Conflict, type Op } from './ops';
 import { validateItem } from './validate';
-import { CmsError, isCmsError, type CmsUser, type CommitAuthor, type FileChange, type RepoBackend } from './types';
+import { CmsError, isCmsError, type CmsUser, type CommitAuthor, type FileChange, type RepoBackend, type RequestResult } from './types';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -178,6 +178,31 @@ export async function publishDirect(backend: RepoBackend, user: CmsUser, ops: Op
     }
   }
   throw new CmsError('unknown', '다른 저장과 겹쳐 저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+}
+
+/* ------------------------------------------------------- 검토 요청 */
+
+/** 메모만 보낼 때 요청 제목 — 메모 첫 줄 */
+function memoTitle(memo: string): string {
+  const first = memo.trim().split('\n')[0].trim();
+  return first.length > 50 ? `${first.slice(0, 49)}…` : first || '메모 요청';
+}
+
+/**
+ * 검토 요청 — 게시와 같은 방식으로 main 최신 파일에 ops 를 적용해 바뀐 파일을 만들되, 저장소에 올리지 않고
+ * 검토 요청(Pull Request, 메모만이면 Issue)으로 보냅니다. 담당자가 확인하고 Merge 해야 사이트에 반영됩니다.
+ */
+export async function sendRequest(backend: RepoBackend, ops: Op[], opts: { memo?: string; details?: string; force?: boolean } = {}): Promise<RequestResult> {
+  if (!backend.submitRequest) throw new CmsError('forbidden', '이 연결로는 검토 요청을 보낼 수 없습니다.');
+  const memo = (opts.memo ?? '').trim();
+  const head = await headOf(backend);
+  let changes: FileChange[] = [];
+  if (ops.length) {
+    const r = await prepareChanges(backend, head, ops);
+    if (r.conflicts.length && !opts.force) throw new CmsError('conflict', '다른 사람이 먼저 이 항목을 수정했습니다.', r.conflicts);
+    changes = r.changes;
+  } else if (!memo) throw new CmsError('validation', '보낼 내용이 없습니다. 메모를 적어 주세요.');
+  return backend.submitRequest({ base: head, changes, title: ops.length ? opsTitle(ops) : memoTitle(memo), lines: ops.map(describeOp), details: opts.details ?? '', memo });
 }
 
 /**

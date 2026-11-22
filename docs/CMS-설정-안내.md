@@ -6,6 +6,7 @@
 - 관리자 화면 주소: `https://smu-edtech-lab.github.io/lead-ai-lab/admin` (저장소를 옮기면 주소가 바뀝니다)
 - 저장소: `https://github.com/smu-edtech-lab/lead-ai-lab` — 연구실 GitHub 조직 `smu-edtech-lab` 소유 (2026-11-10 개인 계정에서 옮김)
 - 지금 편집할 수 있는 것: **소식·구성원·졸업생**, **논문·저역서·학술발표·연구 과제** (사이트 문구·디자인·레이아웃은 다음 단계)
+- GitHub 계정이 없는 분(교수님 등)은 비밀번호로 들어와 **검토 요청**을 보내고, 담당자가 확인해 반영합니다 — 켜는 방법 **14장**, 쓰는 방법 [검토-요청-안내.md](검토-요청-안내.md)
 - 편집자·담당자용 단계별 안내: **[홈페이지-관리-가이드.md](홈페이지-관리-가이드.md)** (관리 화면 위쪽 **사용 안내 ↗**)
 - 메뉴별 입력 칸·사진 규격·저장 위치·권한과 계정·인수인계 체크리스트: **[CMS-사용-안내.md](CMS-사용-안내.md)**
 
@@ -18,6 +19,7 @@
 | App 설치 범위 | `smu-edtech-lab/lead-ai-lab` 저장소 하나 |
 | Worker 변수 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`(Secret), `ALLOWED_RETURN_URLS` |
 | 저장소 변수 | `CMS_AUTH_URL` = 위 Worker 주소 |
+| 검토 요청 (14장) | 코드 준비됨(2026-11-22), **아직 켜지 않음** — 14장 1~7단계를 마치면 이 줄을 고쳐 적기 |
 
 ---
 
@@ -50,6 +52,7 @@
 | GitHub 저장소 권한 | 관리자 화면에서 할 수 있는 일 |
 |---|---|
 | Write 이상 (협업자, Maintain, Admin, 저장소 소유자) | **편집자** — 고친 뒤 바뀐 칸을 확인하고 바로 게시 (승인 단계 없음) |
+| GitHub 계정 없음 + **검토 요청 비밀번호** (교수님 등) | **검토 요청** — 같은 화면에서 고치지만 게시 대신 Pull Request 가 만들어지고, 담당자가 확인·Merge 해야 반영 (14장) |
 | 그 밖 | 들어갈 수 없음 |
 
 관리자 승인 단계는 두지 않았습니다(2026-11-10 연구실 결정). 대신 게시 직전에 바뀌는 칸을 이전 값과 나란히 보여 주고,
@@ -189,12 +192,65 @@ GitHub → **Settings** → **Developer settings** → **Personal access tokens*
 | 위쪽에 "사이트 반영 실패" | 그 표시를 누르면 GitHub Actions 기록이 열립니다. `Check data` 단계가 실패했다면 메시지에 문제 항목이 나옵니다. 실패해도 공개 사이트는 이전 상태 그대로입니다 |
 | 실수로 잘못 게시했다 | 관리자 화면에서 다시 고쳐 게시하면 됩니다. 이전 내용은 저장소 → **Commits** 에서 `[CMS]` 로 시작하는 기록을 눌러 확인할 수 있습니다 |
 | "다른 사람이 같은 칸을 먼저 수정했습니다" | 두 사람이 같은 항목의 같은 칸을 동시에 고친 경우입니다. 다른 칸끼리는 자동으로 합쳐집니다. ‘최신 내용 불러오기’ 또는 ‘내 내용으로 덮어쓰기’ 중 하나를 고릅니다 |
+| 로그인 화면에 "GitHub 계정이 없다면" 칸이 없음 | 14장 — `<Worker 주소>/request/status` 를 열어 `{"enabled":true}` 인지. `false` 면 14장 4단계의 값 중 빠진 것이 있음 |
+| 검토 요청을 보내면 "GitHub 에 요청을 만들지 못했습니다 (GitHub 401 …)" | `GITHUB_APP_ID` 와 `GITHUB_APP_PRIVATE_KEY` 가 같은 App(`LEAD AI Lab CMS`)의 것인지, private key 를 처음부터 끝까지 붙여 넣었는지 |
+| 검토 요청에 "GitHub 401/404" 대신 "Not Found" 가 나옴 | App 이 이 저장소에 설치되어 있는지 (3단계 4번), `CMS_REPO` 가 `smu-edtech-lab/lead-ai-lab` 인지 |
+| 메모를 보내면 "Issues 권한이 있어야" | 14장 2단계 — App 에 Issues 권한을 더하고 조직에서 **Accept new permissions** 까지 |
+| "입장 시간이 지났습니다" | 검토 요청 모드는 8시간 뒤 끝나고, 비밀번호를 바꿔도 끝납니다. 다시 비밀번호로 들어옵니다 |
 
 ## 13. 개발용: 체험 모드
 
 이 PC 에서 `npm run dev` 로 개발 서버를 띄운 뒤 `http://localhost:3000/admin` 에 들어가면 **체험 모드** 버튼이 보입니다.
 브라우저 탭 안의 가짜 저장소로 편집·확인·게시를 끝까지 시험할 수 있고, 실제 저장소와 사이트는 바뀌지 않습니다.
 배포된 사이트에는 체험 모드가 들어가지 않습니다.
+**검토 요청 모드로 체험** 버튼은 교수님 화면(게시 대신 요청 보내기·메모로 요청하기·보낸 요청)을 시험합니다.
+
+## 14. 검토 요청 켜기
+
+교수님처럼 GitHub 계정이 없는 분이 비밀번호로 관리 화면에 들어와 고치면, 게시 대신 **검토 요청**(Pull Request)이 만들어지고
+담당자가 GitHub 에서 확인해 **Merge** 해야 사이트에 반영됩니다. 메모만 보내면 Issue 가 만들어집니다.
+쓰는 방법과 요청을 처리하는 방법은 [검토-요청-안내.md](검토-요청-안내.md)에 있습니다.
+
+```
+교수님(비밀번호) → 관리 화면에서 고침 → [요청 보내기]
+   → 로그인 중계 서버(Worker)가 GitHub App 으로 cms-request/… 브랜치와 Pull Request 를 만듦 (main 은 그대로)
+   → 담당자에게 GitHub 알림(메일·앱) → 확인 → Merge → 사이트 배포 (1~2분)
+```
+
+아래 4단계의 값이 모두 들어가야 로그인 화면에 **GitHub 계정이 없다면** 칸이 생깁니다. **private key 와 비밀번호는 담당자가 직접 넣고**,
+저장소·Dropbox·메일·대화방에 남기지 않습니다.
+
+1. **중계 서버 코드 바꾸기** — Cloudflare → **Workers & Pages** → `lead-ai-lab-cms-auth` → **Edit code** → 기존 코드를 모두 지우고 저장소의 `cms-auth/worker.js` 내용을 붙여 넣은 뒤 **Deploy**.
+   기존 GitHub 로그인은 그대로 동작합니다.
+2. **GitHub App 에 Issues 권한 더하기** (메모 요청용) — 조직 `smu-edtech-lab` → **Settings** → **Developer settings** → **GitHub Apps** → `LEAD AI Lab CMS` → **Edit** → **Permissions & events** →
+   Repository permissions › **Issues**: **Read and write** → 맨 아래 **Save changes**.
+   이어서 조직 **Settings** → **GitHub Apps**(설치된 App) → `LEAD AI Lab CMS` → **Configure** → 위쪽 권한 변경 안내의 **Review request** → **Accept new permissions**.
+   (Contents·Pull requests 는 3단계에서 이미 Read and write 입니다.)
+3. **App ID 와 private key** — 같은 App 의 **General** 화면에서
+   - 위쪽 **App ID**(숫자)를 적어 둡니다.
+   - 아래 **Private keys** → **Generate a private key** 를 누르면 `.pem` 파일이 내려받아집니다. 메모장으로 열어 `-----BEGIN RSA PRIVATE KEY-----` 부터 `-----END RSA PRIVATE KEY-----` 까지 전부 복사합니다.
+   - 3단계에서 만든 예전 키가 목록에 있어도 그대로 두면 됩니다.
+4. **중계 서버에 값 넣기** — Worker → **Settings** → **Variables and secrets** → **Add variable**
+
+   | 이름 | 종류 | 값 |
+   |---|---|---|
+   | `CMS_REPO` | Text | `smu-edtech-lab/lead-ai-lab` |
+   | `GITHUB_APP_ID` | Text | 3번의 App ID |
+   | `GITHUB_APP_PRIVATE_KEY` | **Secret** | 3번에서 복사한 private key 전체 (붙여 넣을 때 줄바꿈이 사라져도 괜찮음) |
+   | `REQUEST_PASSCODE` | **Secret** | 검토 요청 비밀번호 — 12자 이상, 다른 곳에 쓰지 않는 것 |
+   | `REQUEST_NAME` | Text | 요청한 사람으로 표시할 이름 (예: `이현우 교수님`) |
+   | `REQUEST_REVIEWERS` | Text | 알림을 받을 담당자 GitHub 아이디 (여럿이면 쉼표로) |
+
+   **Deploy** 한 뒤, 내려받은 `.pem` 파일은 지우고 휴지통도 비웁니다.
+5. **켜졌는지 확인** — 브라우저로 `<Worker 주소>/request/status` 를 열어 `{"enabled":true}` 가 보이면 됩니다. 관리 화면 로그인 화면에 **GitHub 계정이 없다면** 칸이 생깁니다.
+6. **시험** — 그 칸에 비밀번호를 넣어 들어간 뒤 소식 하나의 글자를 조금 고쳐 **요청 보내기** → 저장소 **Pull requests** 에 `[검토 요청] …` 이 생기고 알림이 오는지 확인 →
+   시험이었으니 **Close pull request** → **Delete branch**. 처음 화면 **메모로 요청하기**도 한 번 보내 **Issues** 에 생기는지 확인하고 닫습니다.
+7. **교수님께 전하기** — 관리 화면 주소, 비밀번호, [검토-요청-안내.md](검토-요청-안내.md)를 직접(만나서·전화로) 전합니다.
+
+- (권장) 저장소 **Settings** → **General** → **Automatically delete head branches** 를 켜면 요청을 Merge 할 때 요청용 브랜치가 자동으로 지워집니다.
+- 검토 요청은 `cms-request/…` 브랜치에 만들어지고, 사이트는 `main` 에서만 배포되므로(9단계 Environments 설정) Merge 하기 전에는 사이트가 바뀌지 않습니다.
+- 중계 서버는 비밀번호를 확인한 사람에게 8시간짜리 입장권만 주고, 데이터 파일(`content/data/*.json`)과 사진(`public/images/…`) 외의 파일은 요청에 넣지 못하게 막습니다.
+- 비밀번호를 바꾸면(`REQUEST_PASSCODE` 수정 → **Deploy**) 들어와 있던 사람도 모두 다시 들어와야 합니다. 비밀번호 관리: [검토-요청-안내.md 9장](검토-요청-안내.md#9-비밀번호-관리-담당자)
 
 ## 파일 위치 (개발자용)
 
@@ -205,6 +261,7 @@ GitHub → **Settings** → **Developer settings** → **Personal access tokens*
 | `lib/cms/collections.ts` | **편집할 항목과 입력 칸 정의** — 새 항목 종류는 여기에 추가 (자동 번호 `autoKey`, 자동 계산 `derive`, 종류 나누기 `match`, 파일 합계 `fileHooks`) |
 | `lib/cms/engine.ts` | 게시 처리 (최신 내용에 다시 적용·칸 단위 병합·충돌 확인) |
 | `lib/cms/github.ts` | GitHub API 연결 |
+| `lib/cms/request.ts` | 검토 요청 모드 (중계 서버를 거쳐 읽기·요청 보내기, 요청 글의 바뀐 칸 표) |
 | `lib/cms/validate.ts` | 입력 검사 (`scripts/check-data.mjs` 와 같은 규칙) |
-| `cms-auth/worker.js` | 로그인 중계 서버 |
+| `cms-auth/worker.js` | 로그인 중계 서버 + 검토 요청 (`/request/…`, 14장) |
 | `styles/admin.css` | 관리자 화면 스타일 |

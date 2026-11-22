@@ -1,11 +1,17 @@
 'use client';
 /**
  * 관리자 화면 상태 — 로그인한 사람, 저장소 백엔드, 저장소에서 읽은 데이터, 화면 이동, 알림.
+ * submitOps 가 게시(편집자)와 검토 요청(GitHub 계정 없이 들어온 사람)을 나눠 처리합니다.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { loadSnapshot, type RepoSnapshot } from '@/lib/cms/engine';
-import { errorMessage, isCmsError, type CmsUser, type RepoBackend } from '@/lib/cms/types';
+import { loadSnapshot, publishDirect, sendRequest, type RepoSnapshot } from '@/lib/cms/engine';
+import type { Op } from '@/lib/cms/ops';
+import { requestDetails } from '@/lib/cms/request';
+import { errorMessage, isCmsError, type CmsUser, type RepoBackend, type RequestResult } from '@/lib/cms/types';
 import { Toasts, type Toast } from './ui';
+
+/** 게시했으면 publish, 검토 요청을 보냈으면 request */
+export type SubmitResult = { mode: 'publish'; viaPull?: number } | { mode: 'request'; request: RequestResult };
 
 export interface CmsContextValue {
   backend: RepoBackend;
@@ -23,6 +29,12 @@ export interface CmsContextValue {
   /** 저장 후 배포 상태를 자주 확인하도록 */
   deployWatch: number;
   watchDeploy: () => void;
+  /** GitHub 계정 없이 들어와, 게시 대신 검토 요청을 보내는 중인지 */
+  requestMode: boolean;
+  /** 변경을 게시하거나(편집자) 검토 요청으로 보냄(요청 모드). 메모는 요청 모드에서만 씀 */
+  submitOps: (ops: Op[], opts?: { force?: boolean; memo?: string }) => Promise<SubmitResult>;
+  /** 요청을 보낼 때마다 늘어남 — 처음 화면 '보낸 요청' 을 다시 읽도록 */
+  requestCount: number;
 }
 
 const Ctx = createContext<CmsContextValue | null>(null);
@@ -50,6 +62,8 @@ export function CmsProvider({ backend, user, onExpired, children }: { backend: R
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [route, setRoute] = useState<string[]>([]);
   const [deployWatch, setDeployWatch] = useState(0);
+  const [requestCount, setRequestCount] = useState(0);
+  const requestMode = user.role === 'requester';
   const dirty = useRef(false);
   const lastHash = useRef('');
   const toastId = useRef(0);
@@ -129,6 +143,21 @@ export function CmsProvider({ backend, user, onExpired, children }: { backend: R
 
   const watchDeploy = useCallback(() => setDeployWatch((n) => n + 1), []);
 
+  const submitOps = useCallback(
+    async (ops: Op[], opts: { force?: boolean; memo?: string } = {}): Promise<SubmitResult> => {
+      if (requestMode) {
+        const details = requestDetails(ops, snapshot?.files ?? {}, snapshot?.projects ?? []);
+        const request = await sendRequest(backend, ops, { memo: opts.memo, details, force: opts.force });
+        setRequestCount((n) => n + 1);
+        return { mode: 'request', request };
+      }
+      const r = await publishDirect(backend, user, ops, { force: opts.force });
+      setDeployWatch((n) => n + 1);
+      return { mode: 'publish', viaPull: r.viaPull };
+    },
+    [backend, user, requestMode, snapshot],
+  );
+
   const value: CmsContextValue = {
     backend,
     user,
@@ -143,6 +172,9 @@ export function CmsProvider({ backend, user, onExpired, children }: { backend: R
     setDirty,
     deployWatch,
     watchDeploy,
+    requestMode,
+    submitOps,
+    requestCount,
   };
 
   return (
