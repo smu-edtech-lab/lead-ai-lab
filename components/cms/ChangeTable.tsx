@@ -1,7 +1,7 @@
 'use client';
 /** 바뀐 칸 표 — 게시 전 확인 창에서 "지금 사이트" 와 "게시할 내용" 을 나란히 보여 줍니다 */
 import type { ReactNode } from 'react';
-import { areaOptions, type CollectionDef, type FieldDef, type Item } from '@/lib/cms/collections';
+import { areaOptions, listRowText, type CollectionDef, type FieldDef, type Item } from '@/lib/cms/collections';
 import type { ProjectRef } from '@/lib/cms/engine';
 import { sameValue } from '@/lib/cms/ops';
 import { Thumb } from './Thumb';
@@ -17,6 +17,8 @@ function formatValue(f: FieldDef, v: unknown, projects: ProjectRef[], images: Re
       return (v as string[]).join(', ');
     case 'paragraphs':
       return <span className="cms-pre">{(v as string[]).join('\n\n')}</span>;
+    case 'lines':
+      return <span className="cms-pre">{(v as string[]).join('\n')}</span>;
     case 'checkbox':
       return v === true ? '예' : '아니오';
     case 'image':
@@ -25,12 +27,7 @@ function formatValue(f: FieldDef, v: unknown, projects: ProjectRef[], images: Re
       return (
         <span className="cms-pre">
           {(v as Item[])
-            .map((r) => {
-              const p = r.projectId ? projects.find((x) => x.id === r.projectId) : null;
-              const head = p ? `[연구실 과제] ${p.title} (${p.period})` : [r.period, r.title].filter(Boolean).join(' · ');
-              const line = [head, r.role, r.detail].filter(Boolean).join(' · ');
-              return r.hidden === true ? `${line}  — 사이트에 표시 안 함` : line;
-            })
+            .map((r) => listRowText(f, r, projects))
             .join('\n')}
         </span>
       );

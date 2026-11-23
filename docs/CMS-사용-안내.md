@@ -48,6 +48,12 @@
 | 연구 실적 | **저역서** | 번호 `b00` (자동) | Books(표지 카드), Research 분야별 관련 연구. 최근 2개 연도 책은 News 에 ‘연구 성과’ 소식으로 자동으로 나옴 |
 | 연구 실적 | **학술발표** | 번호 `c00` (자동) | Publications(학술발표), Research 분야별 관련 연구 |
 | 연구 실적 | **연구 과제** | 번호 `p00` (자동) | Projects, Home 연구 과제 미리보기(최근 2건), 연구 분야 상세. 구성원 프로필의 ‘참여 연구 프로젝트’에서 고를 수 있음 |
+| 연구실 정보 | **연구실 이름·소개** | 한 덩어리 (목록 없음) | 영문·국문 이름, LEAD 의 뜻, 슬로건, 바닥글 큰 문구, 소개 문단 2개, 연구 분야 키워드, LEAD 네 축 — Home 첫 화면, About, 머리말·바닥글 |
+| 연구실 정보 | **소속·연락처** | 한 덩어리 | 대학·학과·전공(국문·영문), 건물·호실·도로명 주소, 전화, 문의 이메일(예시 주소 표시) — About, Contact, 바닥글, 메뉴 |
+| 연구실 정보 | **지도교수** | 한 덩어리 | 이름·직위·소속, 사진(세로 4:5), 학력, 연구실·전화·공개 이메일, 연구 관심 분야, 소개 — Home 첫 화면 사진, About › Professor |
+| 연구실 정보 | **지도교수 경력** | 번호 `career-00` (자동) | 직책·기관·시작·끝(비우면 지금 맡은 일) — About › Professor 의 Current roles·Career |
+| 연구실 정보 | **연구 분야** | 주소 (정해진 다섯 개, 추가·삭제 없음) | 영문·국문 이름, 요약, 설명, 키워드, 순서 — Home, Research, 분야별 페이지 `/research/<주소>` |
+| 페이지 문구 | **Home · About · Research · Projects · Publications · People · Books · News · Contact** | 페이지마다 한 덩어리 | 각 페이지의 제목·국문 제목·소개 문장·섹션 제목·설명·버튼 이름, Contact 의 자주 묻는 질문. 고치는 동안 실제 페이지가 미리보기로 보임 |
 
 논문·저역서에서 자동으로 만들어지는 ‘연구 성과’ 소식은 실적 데이터에서 계산되는 것입니다. 그래서 **소식** 메뉴에는 나오지 않고, 논문·저역서를 고치면 함께 바뀝니다.
 
@@ -218,17 +224,15 @@
 
 ### 2-5. 관리자 화면으로 아직 고칠 수 없는 것
 
-아래 내용은 지금은 파일을 직접 고쳐야 합니다. 관리자 화면에서 고칠 수 있게 하는 작업(사이트 문구 편집)은 다음 단계로 계획되어 있습니다.
+아래 내용은 지금은 파일을 직접 고쳐야 합니다. (연구실 이름·소개, 소속·연락처, 지도교수·경력, 연구 분야 설명, 페이지 문구는 2026-11-23 부터 관리자 화면에서 고칩니다.)
 
 | 내용 | 파일 |
 |---|---|
-| 연구실 이름·슬로건·소개 문단·비전 네 축 | `content/data/brand.json` (대학 승인 전 제안안. 승인되면 `meta.status` 를 `"approved"` 로 바꿈) |
-| 주소·호실·전화·이메일, 상단 메뉴, Contact 의 참여 안내 문답 | `content/site.ts` |
-| 지도교수 소개·학력·연락처 | `content/profile.ts` |
-| 지도교수 경력 | `content/data/career.json` |
-| 연구 분야 다섯 개의 이름·설명·키워드 | `content/research-areas.ts` |
+| 브랜드 승인 상태(대학 승인 전 제안안 → 승인), 로고 글자(`wordmark`) | `content/data/brand.json` 의 `meta.status`(승인되면 `"approved"`)·`wordmark`·`shortWordmark` |
+| 상단 메뉴, Home 구성원 미리보기 표시, 문의 자동 발송 주소 | `content/site.ts` (`nav`, `homeShowPeople`, `contactEndpoint`) |
+| 연구 분야를 새로 만들거나 없애기 | `content/data/research-areas.json` + `content/types.ts` 의 `AreaId` + `scripts/check-data.mjs` 의 `AREAS` |
 | 연구실 연혁 | `content/data/lab-history.json` (지금은 화면에 나오지 않음) |
-| 각 페이지 제목과 안내 문장 | `app/*/page.tsx` |
+| 페이지 섹션 배치, 상세 페이지의 작은 이름표 | `components/pages/*`, `app/*/page.tsx` |
 | 색·글꼴·간격 등 디자인 | `design-system/tokens.json` → `npm run tokens` |
 
 ---
@@ -246,6 +250,12 @@
 | 저역서 | `content/data/publications.json` (`items` 중 `type: "book"`) | 표지 `public/images/books/` |
 | 학술발표 | `content/data/publications.json` (`items` 중 `type: "conference"`) | — |
 | 연구 과제 | `content/data/projects.json` (`items`) | `public/images/projects/` |
+| 연구실 이름·소개 | `content/data/brand.json` (파일 전체 — 로고 글자·승인 상태 칸은 화면에 없어 그대로 둠) | — |
+| 소속·연락처 | `content/data/site.json` (파일 전체) | — |
+| 지도교수 | `content/data/profile.json` (파일 전체) | 사진 `public/images/people/` (처음 사진은 `public/images/professor-lee-hyunwoo.png`) |
+| 지도교수 경력 | `content/data/career.json` (`items`) | — |
+| 연구 분야 | `content/data/research-areas.json` (`items`) | — |
+| 페이지 문구 | `content/data/pages.json` (페이지마다 `home`·`about`·… 한 칸) | — |
 
 - 사진 파일 이름은 `<주소 또는 번호>-<임의 글자>.jpg` 입니다(예: `seoyeon-lee-m3k2x1.jpg`). 사진을 바꿀 때마다 새 이름을 써서, 브라우저에 남은 예전 사진이 보이지 않게 합니다.
 - 관리자 화면은 **위 표의 데이터 파일과 사진 폴더만** 고칩니다. 사이트 코드, 디자인, 그 밖의 파일은 건드리지 않습니다.

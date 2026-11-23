@@ -88,6 +88,29 @@ function ParagraphsInput({ id, value, rows, onChange, aria }: { id: string; valu
   );
 }
 
+/** 한 줄에 하나씩 — 제목 줄 나눔 (빈 줄은 버림) */
+function LinesInput({ id, value, rows, onChange, aria }: { id: string; value: unknown; rows?: number; onChange: (v: string[]) => void; aria: Record<string, unknown> }) {
+  const [text, setText] = useState(() => (Array.isArray(value) ? value.map(str).join('\n') : str(value)));
+  return (
+    <textarea
+      id={id}
+      className="cms-input cms-textarea cms-textarea--lines"
+      rows={rows ?? 2}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(
+          e.target.value
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean),
+        );
+      }}
+      {...aria}
+    />
+  );
+}
+
 /** 쉼표로 구분한 낱말 목록 */
 function TagsInput({ id, value, placeholder, onChange, aria }: { id: string; value: unknown; placeholder?: string; onChange: (v: string[]) => void; aria: Record<string, unknown> }) {
   const [text, setText] = useState(() => (Array.isArray(value) ? value.map(str).join(', ') : ''));
@@ -178,7 +201,7 @@ function ListInput({ field, value, path, onChange, errors, env }: { field: Field
     onChange(next);
   };
   return (
-    <div className="cms-listfield">
+    <div className={cx('cms-listfield', `cms-listfield--${field.name}`)}>
       {rows.length === 0 ? <p className="cms-help cms-listfield__empty">아직 없습니다. 아래 ‘+ {field.addLabel ?? '추가'}’를 눌러 한 줄씩 넣습니다.</p> : null}
       {rows.map((row, i) => (
         <div className={cx('cms-listfield__row', field.hideable && row.hidden === true && 'is-hidden')} key={i}>
@@ -213,6 +236,16 @@ function ListInput({ field, value, path, onChange, errors, env }: { field: Field
                         </option>
                       ))}
                     </select>
+                  ) : sub.type === 'textarea' ? (
+                    <textarea
+                      id={id}
+                      className="cms-input cms-textarea"
+                      rows={sub.rows ?? 2}
+                      value={str(row[sub.name])}
+                      placeholder={sub.placeholder}
+                      onChange={(e) => update(i, sub.name, e.target.value)}
+                      aria-invalid={err ? true : undefined}
+                    />
                   ) : (
                     <input
                       id={id}
@@ -289,6 +322,12 @@ export function FieldControl({ field, value, onChange, errors, env }: { field: F
       return (
         <Wrap field={field} path={path} error={error}>
           <ParagraphsInput id={id} value={value} rows={field.rows} onChange={onChange} aria={aria} />
+        </Wrap>
+      );
+    case 'lines':
+      return (
+        <Wrap field={field} path={path} error={error}>
+          <LinesInput id={id} value={value} rows={field.rows} onChange={onChange} aria={aria} />
         </Wrap>
       );
     case 'tags':

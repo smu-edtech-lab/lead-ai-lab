@@ -2,7 +2,7 @@
 /** 관리자 화면 틀 — 위쪽 막대(사이트 반영 상태·사용자) + 왼쪽 메뉴 + 본문 */
 import { useEffect, useState, type ReactNode } from 'react';
 import { withBasePath } from '@/lib/base-path';
-import { collectionGroups } from '@/lib/cms/collections';
+import { PAGE_GROUP, collectionGroups } from '@/lib/cms/collections';
 import { guideUrl, requestGuideUrl } from '@/lib/cms/config';
 import type { DeployInfo } from '@/lib/cms/types';
 import { useCms } from './context';
@@ -72,7 +72,8 @@ function DeployStatus() {
 
 export function Shell({ children, onSignOut, onResetMock }: { children: ReactNode; onSignOut: () => void; onResetMock?: () => void }) {
   const { user, backend, route, navigate } = useCms();
-  const current = route[0] ?? '';
+  /* 페이지 문구는 메뉴에서 한 줄 — 페이지별 편집 화면(#/page-…)에 있어도 '페이지 문구'가 선택된 것으로 */
+  const current = route[0]?.startsWith('page-') ? 'pages' : (route[0] ?? '');
   const guide = user.role === 'requester' ? requestGuideUrl() : guideUrl();
   const navLink = (id: string, label: string) => (
     <li key={id || 'home'}>
@@ -144,7 +145,7 @@ export function Shell({ children, onSignOut, onResetMock }: { children: ReactNod
                 {g.title}
               </p>
               <ul role="list" aria-label={g.title}>
-                {g.items.map((c) => navLink(c.id, c.label))}
+                {g.title === PAGE_GROUP ? navLink('pages', '페이지 문구') : g.items.map((c) => navLink(c.id, c.label))}
               </ul>
             </div>
           ))}

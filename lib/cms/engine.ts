@@ -9,7 +9,7 @@
  */
 import { CMS_BRANCH_PREFIX } from './config';
 import { PROJECTS_FILE, collections, dataFiles, itemsOf, keyOf, toRepoPath } from './collections';
-import { applyOps, assertAssetPath, describeOp, isDataOp, opsTitle, type Conflict, type Op } from './ops';
+import { applyOps, assertAssetPath, describeOp, findItem, isDataOp, opsTitle, type Conflict, type Op } from './ops';
 import { validateItem } from './validate';
 import { CmsError, isCmsError, type CmsUser, type CommitAuthor, type FileChange, type RepoBackend, type RequestResult } from './types';
 
@@ -112,7 +112,7 @@ export async function prepareChanges(backend: RepoBackend, ref: string, ops: Op[
     }
     if (count > 1) throw new CmsError('validation', `"${key}" 를 쓰는 항목이 이미 있습니다.${def.autoKey ? '' : ' 다른 주소를 적어 주세요.'}`);
     // 다른 사람의 수정과 병합된, 실제로 저장될 항목을 검사
-    const actual = itemsOf(data, def.arrayKey).find((x) => keyOf(x) === key) ?? op.item;
+    const actual = findItem(data, def, key) ?? op.item;
     const errors = validateItem(def, actual, { takenKeys: taken, projectIds, isNew: !op.before });
     const first = Object.values(errors)[0];
     if (first) throw new CmsError('validation', `${def.itemLabel} "${def.title(actual)}": ${first}`, errors);

@@ -6,7 +6,9 @@
  *   #/news             소식 목록        #/news/new · #/news/edit/<주소>
  *   #/members          구성원 목록      #/members/new · #/members/edit/<주소>
  *   #/alumni           졸업생 목록      #/alumni/move/<구성원 주소> (구성원 → 졸업생 옮기기)
- *   (논문·저역서·학술발표·연구 과제도 같은 모양: #/journals/new · #/journals/edit/<번호> …)
+ *   (논문·저역서·학술발표·연구 과제·지도교수 경력·연구 분야도 같은 모양: #/journals/new · #/journals/edit/<번호> …)
+ *   #/brand · #/site · #/professor      연구실 정보 (한 덩어리 문서 — 목록 없이 바로 편집)
+ *   #/pages            페이지 문구 목록  #/page-home · #/page-about … (페이지별 문구 편집)
  *
  * 저장소 쓰기 권한이 있는 사람(편집자)은 모두 같은 권한으로, 바뀐 내용을 확인한 뒤 바로 게시합니다.
  * GitHub 계정이 없는 사람(교수님 등)은 검토 요청 비밀번호로 들어와, 같은 화면에서 게시 대신 검토 요청을 보냅니다(lib/cms/request.ts).
@@ -22,7 +24,7 @@ import { CmsProvider, useCms } from './context';
 import { LoginScreen } from './LoginScreen';
 import { Shell } from './Shell';
 import { Dashboard } from './Dashboard';
-import { CollectionList } from './CollectionList';
+import { CollectionList, PageTextList } from './CollectionList';
 import { ItemEditor } from './ItemEditor';
 import { Spinner } from './ui';
 
@@ -171,8 +173,11 @@ export function CmsApp() {
 function Router() {
   const { route } = useCms();
   const [first, second, third] = route;
+  if (first === 'pages') return <PageTextList />;
   if (first && isCollectionId(first)) {
-    if (second === 'new') return <ItemEditor collection={first} itemKey={null} key={`${first}:new`} />;
+    const def = collections[first];
+    if (def.single) return <ItemEditor collection={first} itemKey={def.single.key} key={first} />;
+    if (second === 'new' && def.canCreate !== false) return <ItemEditor collection={first} itemKey={null} key={`${first}:new`} />;
     if (second === 'edit' && third) return <ItemEditor collection={first} itemKey={third} key={`${first}:${third}`} />;
     if (second === 'move' && third && collections[first].moveFrom) return <ItemEditor collection={first} itemKey={null} moveFrom={third} key={`${first}:move:${third}`} />;
     return <CollectionList collection={first} key={first} />;

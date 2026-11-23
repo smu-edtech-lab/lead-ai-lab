@@ -4,7 +4,7 @@
  * 검토 요청 모드에서는 최근 게시 대신 '보낸 요청'(진행 상태)과 '메모로 요청하기'를 보여 줍니다.
  */
 import { useEffect, useState } from 'react';
-import { collectionGroups, collectionItems } from '@/lib/cms/collections';
+import { PAGE_GROUP, collectionGroups, collectionItems } from '@/lib/cms/collections';
 import { errorMessage, isCmsError, type ChangeInfo, type RequestInfo } from '@/lib/cms/types';
 import { useCms } from './context';
 import { Badge, Btn, timeAgo } from './ui';
@@ -92,7 +92,7 @@ function MyRequests() {
   );
 }
 
-/** 메모로 요청하기 — 관리 화면에서 고칠 수 없는 것(배치·디자인·사이트 문구 등) */
+/** 메모로 요청하기 — 관리 화면에서 고칠 수 없는 것(화면 배치·디자인 등) */
 function MemoRequest() {
   const { submitOps, notify, fail } = useCms();
   const [memo, setMemo] = useState('');
@@ -102,7 +102,7 @@ function MemoRequest() {
       <h2 id="cms-memo-title" className="cms-h2">
         메모로 요청하기
       </h2>
-      <p className="cms-help">화면 배치·디자인·사이트 문구처럼 여기서 고칠 수 없는 것은 메모로 적어 보내세요. 담당자가 확인하고 반영합니다.</p>
+      <p className="cms-help">화면 배치·디자인·색처럼 여기서 고칠 수 없는 것은 메모로 적어 보내세요. 담당자가 확인하고 반영합니다.</p>
       <form
         className="cms-memo-form"
         onSubmit={(e) => {
@@ -130,7 +130,7 @@ function MemoRequest() {
           rows={4}
           maxLength={2000}
           value={memo}
-          placeholder="예: Research 페이지 맨 위 소개 문장을 ‘…’로 바꿔 주세요."
+          placeholder="예: Home 첫 화면 사진을 연구실 단체 사진으로 바꾸고, 사진을 조금 더 크게 보여 주세요."
           onChange={(e) => setMemo(e.target.value)}
         />
         <p className="cms-help">메모는 공개 저장소에 올라가 누구나 볼 수 있습니다. 연락처 같은 개인 정보는 적지 마세요.</p>
@@ -244,9 +244,61 @@ export function Dashboard() {
       {collectionGroups.map((g) => (
         <section key={g.title} className="cms-section" aria-label={g.title}>
           <h2 className="cms-grouptitle">{g.title}</h2>
+          {g.title === PAGE_GROUP ? (
+            /* 페이지 문구 — 카드 하나에 페이지 단추를 모음 */
+            <div className="cms-card cms-card--pages">
+              <p className="cms-card__where">페이지마다 제목·소개 문장·섹션 제목·버튼 이름을 고칩니다. 고치는 동안 실제 페이지가 미리보기로 보입니다.</p>
+              <ul className="cms-pagechips" role="list">
+                {g.items.map((c) => (
+                  <li key={c.id}>
+                    <a
+                      className="cms-pagechip"
+                      href={`#/${c.id}`}
+                      title={c.where}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate(c.id);
+                      }}
+                    >
+                      {c.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
           <ul className="cms-cards" role="list">
             {g.items.map((c) => {
               const n = snapshot ? collectionItems(snapshot.files[c.file], c).length : 0;
+              if (c.single) {
+                return (
+                  <li key={c.id} className="cms-card">
+                    <div className="cms-card__head">
+                      <h3 className="cms-h2">
+                        <a
+                          className="cms-card__link"
+                          href={`#/${c.id}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigate(c.id);
+                          }}
+                        >
+                          {c.label}
+                        </a>
+                      </h3>
+                    </div>
+                    <p className="cms-card__where">
+                      <span className="cms-visually-hidden">공개 사이트에서 나오는 곳: </span>
+                      {c.where}
+                    </p>
+                    <div className="cms-row">
+                      <Btn variant="secondary" size="s" onClick={() => navigate(c.id)}>
+                        고치기
+                      </Btn>
+                    </div>
+                  </li>
+                );
+              }
               return (
                 <li key={c.id} className="cms-card">
                   <div className="cms-card__head">
@@ -272,14 +324,17 @@ export function Dashboard() {
                     <Btn variant="secondary" size="s" onClick={() => navigate(c.id)}>
                       목록 보기
                     </Btn>
-                    <Btn variant="ghost" size="s" onClick={() => navigate(`${c.id}/new`)}>
-                      + {c.itemLabel} 추가
-                    </Btn>
+                    {c.canCreate !== false ? (
+                      <Btn variant="ghost" size="s" onClick={() => navigate(`${c.id}/new`)}>
+                        + {c.itemLabel} 추가
+                      </Btn>
+                    ) : null}
                   </div>
                 </li>
               );
             })}
           </ul>
+          )}
         </section>
       ))}
 

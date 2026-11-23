@@ -2,17 +2,22 @@
 /**
  * 항목 편집 — 입력 폼 + 미리보기 → '확인하고 게시' 를 누르면 바뀐 칸을 보여 주고, 확인하면 바로 게시합니다.
  * 검토 요청 모드(GitHub 계정 없이 들어온 사람)는 같은 화면에서 게시 대신 '요청 보내기' — 담당자가 확인한 뒤 반영합니다.
+ * 한 덩어리 문서(연구실 정보·페이지 문구, collections.ts 의 single)는 목록 없이 이 화면이 바로 열리고 삭제가 없습니다.
+ * previewPages 가 있는 정의는 카드 대신 실제 페이지를 미리보기로 그리고(PagePreview), 고치는 칸 묶음이 있는 곳으로 따라갑니다.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { collections, itemsOf, keyOf, moveTargets, nextKey, toPublicPath, toRepoPath, type CollectionId, type FieldDef, type Item } from '@/lib/cms/collections';
+import { PAGE_GROUP, collections, itemKeyOf, itemsOf, keyOf, moveTargets, nextKey, toPublicPath, toRepoPath, type CollectionId, type FieldDef, type Item } from '@/lib/cms/collections';
 import { dataUrl } from '@/lib/cms/encoding';
-import { findItem, mergeItem, normalizeItem, sameValue, type Conflict, type Op } from '@/lib/cms/ops';
+import { applyOps, findItem, mergeItem, normalizeItem, sameValue, type Conflict, type Op } from '@/lib/cms/ops';
+import { DOC_PATHS } from '@/lib/site-docs';
+import { withBasePath } from '@/lib/base-path';
 import { validateItem, type FieldErrors } from '@/lib/cms/validate';
 import { imageFileName, prepareImage, type PreparedImage } from '@/lib/cms/image';
 import { errorMessage, isCmsError } from '@/lib/cms/types';
 import { useCms } from './context';
 import { FieldControl, type FieldEnv } from './fields';
 import { ItemPreview } from './Preview';
+import { PagePreview } from './PagePreview';
 import { ChangeTable, countChanges } from './ChangeTable';
 import { Badge, Btn, Dialog, Notice, josa, timeAgo } from './ui';
 
@@ -68,6 +73,11 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   const srcDef = move ? collections[move.collection] : null;
   const isMove = move !== null;
   const isNew = itemKey === null;
+  /** 한 덩어리 문서 (연구실 정보·페이지 문구) — 목록·삭제·주소 칸이 없음 */
+  const isSingle = !!def.single;
+  /** 돌아갈 곳 — 페이지 문구는 페이지 목록, 다른 한 덩어리 문서는 처음 화면, 나머지는 목록 */
+  const backPath = isSingle ? (def.group === PAGE_GROUP ? 'pages' : '') : collection;
+  const backLabel = isSingle ? (def.group === PAGE_GROUP ? '페이지 문구' : '처음 화면') : `${def.label} 목록`;
   const draftKey = `${DRAFT_PREFIX}${collection}:${isMove ? `move:${moveFrom}` : (itemKey ?? 'new')}`;
 
   const [base, setBase] = useState<Item | null>(() => (itemKey && snapshot ? findItem(snapshot.files[def.file], def, itemKey) : null));
@@ -87,6 +97,8 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   const [askDelete, setAskDelete] = useState(false);
   /** 검토 요청 모드: 담당자에게 남길 말 */
   const [memo, setMemo] = useState('');
+  /** 페이지 미리보기가 따라갈 곳 — 칸 묶음을 고치기 시작하면 바뀜 */
+  const [focus, setFocus] = useState<{ selector: string | null; seq: number }>({ selector: null, seq: 0 });
   const formRef = useRef<HTMLFormElement>(null);
 
   /* 주소(slug) — 새 항목은 손대기 전까지 이름·날짜로 자동 제안 */
@@ -109,14 +121,16 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   const KF = def.keyField;
   const autoKey = !!def.autoKey;
   const predictedKey = useMemo(() => (autoKey && isNew ? nextKey(def, snapshot?.files[def.file]) : ''), [autoKey, isNew, def, snapshot]);
-  /** 이 항목의 키 — 주소(slug) 또는 번호(id) */
+  /** 이 항목의 키 — 주소(slug) 또는 번호(id). 한 덩어리 문서는 정해 둔 key */
   const slug = isMove ? (moveFrom as string) : !isNew ? (itemKey as string) : autoKey ? predictedKey : slugTouched ? str(draft.slug) : suggestion;
+  /** 저장할 모양에 키를 넣음 — 한 덩어리 문서는 주소·번호 칸이 없어 그대로 */
+  const withKey = (d: Item): Item => (isSingle ? d : { ...d, [KF]: slug });
 
   const projectIds = useMemo(() => (snapshot?.projects.length ? new Set(snapshot.projects.map((p) => p.id)) : null), [snapshot]);
 
   /** 저장할 모양으로 정리 (사진은 게시할 때 실제 파일 이름을 정함) */
   const finalize = (forSave: boolean) => {
-    const replaced: Item = { ...draft, [KF]: slug };
+    const replaced: Item = withKey(draft);
     const puts: Op[] = [];
     for (const f of def.fields) {
       if (f.type !== 'image' || !f.image) continue;
@@ -135,7 +149,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
       for (const f of def.fields) {
         if (f.type !== 'image' || !f.image) continue;
         const old = origin[f.name];
-        if (old !== item[f.name] && ownedImage(old, f.image.dir, keyOf(origin))) removals.push({ kind: 'deleteFile', path: toRepoPath(old) });
+        if (old !== item[f.name] && ownedImage(old, f.image.dir, itemKeyOf(def, origin))) removals.push({ kind: 'deleteFile', path: toRepoPath(old) });
       }
     }
     return { item, puts, removals };
@@ -146,6 +160,19 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [draft, slug, images, takenKeys, projectIds],
   );
+  /* 페이지 미리보기 — 문구 묶음 파일에 지금 고친 내용을 적용해 창 안으로 보냄 */
+  const previewFiles = useMemo(() => {
+    if (!def.previewPages || !snapshot) return null;
+    const files: Record<string, unknown> = {};
+    for (const path of DOC_PATHS) files[path] = clone(snapshot.files[path]);
+    try {
+      applyOps(files, [{ kind: 'upsert', collection, key: slug || 'new', item: normalizeItem(def, withKey(draft), base), before: base }]);
+    } catch {
+      /* 아직 다 채우지 않은 새 항목 등 — 저장소 내용 그대로 보여 줌 */
+    }
+    return files;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [def, snapshot, draft, slug, base]);
   const shownErrors = showErrors ? errors : {};
   const errorCount = Object.keys(errors).length;
 
@@ -170,7 +197,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   useEffect(() => {
     if (!changed) return;
     const t = window.setTimeout(() => {
-      const keep: Item = { ...draft, [KF]: slug };
+      const keep: Item = withKey(draft);
       for (const f of def.fields) if (f.type === 'image' && typeof keep[f.name] === 'string' && (keep[f.name] as string).startsWith('pending:')) keep[f.name] = base?.[f.name] ?? null;
       try {
         storage()?.setItem(draftKey, JSON.stringify({ draft: keep, at: Date.now() }));
@@ -179,6 +206,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
       }
     }, 600);
     return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, slug, changed, draftKey, def, base, KF]);
 
   const clearDraft = () => storage()?.removeItem(draftKey);
@@ -253,7 +281,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
       setDirty(false);
       setConfirming(null);
       await reload();
-      navigate(collection);
+      navigate(backPath);
     } catch (e) {
       setConfirming(null);
       if (isCmsError(e, 'conflict')) setConflict({ list: (e.detail as Conflict[]) ?? [], ops, kind });
@@ -265,7 +293,8 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   };
 
   /** 이 항목 전용 사진 파일 (삭제할 때 함께 지움) */
-  const ownedFiles = base ? def.fields.filter((f) => f.type === 'image' && f.image && ownedImage(base[f.name], f.image.dir, keyOf(base))).map((f) => base[f.name] as string) : [];
+  const ownedFiles = base ? def.fields.filter((f) => f.type === 'image' && f.image && ownedImage(base[f.name], f.image.dir, itemKeyOf(def, base))).map((f) => base[f.name] as string) : [];
+  const canDelete = !isNew && !isSingle && def.canDelete !== false;
 
   const remove = () => {
     if (!base) return;
@@ -302,8 +331,8 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   if (itemKey && !base && !conflict) {
     return (
       <div className="cms-page">
-        <Notice tone="warn" title="이 항목을 찾을 수 없습니다" actions={<Btn onClick={() => navigate(collection)}>{def.label} 목록으로</Btn>}>
-          이미 삭제되었거나 주소가 바뀌었을 수 있습니다.
+        <Notice tone="warn" title={isSingle ? `${def.itemLabel} 파일을 읽지 못했습니다` : '이 항목을 찾을 수 없습니다'} actions={<Btn onClick={() => navigate(backPath)}>{josa(backLabel, '으로', '로')}</Btn>}>
+          {isSingle ? `저장소의 ${def.file} 파일이 없거나 모양이 바뀌었을 수 있습니다. 담당자에게 알려 주세요.` : '이미 삭제되었거나 주소가 바뀌었을 수 있습니다.'}
         </Notice>
       </div>
     );
@@ -328,7 +357,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
     );
   }
 
-  const previewItem = normalizeItem(def, { ...draft, [KF]: slug }, base);
+  const previewItem = normalizeItem(def, withKey(draft), base);
   const changeCount = confirming ? countChanges(def, base, confirming.item) : 0;
 
   /* 옮기기 안내 — 그대로 옮기는 칸과, 이 메뉴에 없어 버리는 칸 */
@@ -338,25 +367,32 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
   /* 이 항목을 다른 메뉴로 옮기는 버튼 (구성원 편집 화면의 '졸업생으로 옮기기') */
   const targets = !isNew ? moveTargets(collection) : [];
 
-  /* 소제목(section) 단위로 칸 묶기 */
-  const groups: { title: string | null; fields: FieldDef[] }[] = [];
+  /* 소제목(section) 단위로 칸 묶기 — 묶음의 첫 칸에 anchor 가 있으면 그 묶음을 고칠 때 페이지 미리보기가 그곳으로 감 */
+  const groups: { title: string | null; anchor: string | null; fields: FieldDef[] }[] = [];
   for (const f of def.fields) {
-    if (f.section || groups.length === 0) groups.push({ title: f.section ?? null, fields: [] });
+    if (f.section || groups.length === 0) groups.push({ title: f.section ?? null, anchor: f.anchor ?? null, fields: [] });
     groups[groups.length - 1].fields.push(f);
   }
+  const follow = (selector: string | null) => {
+    if (selector && selector !== focus.selector) setFocus((x) => ({ selector, seq: x.seq + 1 }));
+  };
 
   const clashLabels = (c: Conflict) => c.fields.map((n) => def.fields.find((f) => f.name === n)?.label ?? n).join(', ');
 
   /* 긴 폼(구성원·졸업생)은 위쪽에 바로 가기 — 목록 칸이 있는 묶음은 목록 칸마다, 아니면 소제목 */
   const jumps = groups.flatMap((g, gi) => {
     const lists = g.fields.filter((f) => f.type === 'list');
-    if (lists.length) return lists.map((f) => ({ id: `cms-f-${f.name}-wrap`, label: f.label }));
-    return g.title ? [{ id: `cms-sec-${gi}`, label: g.title }] : [];
+    if (lists.length && !g.anchor) return lists.map((f) => ({ id: `cms-f-${f.name}-wrap`, label: f.label, anchor: null as string | null }));
+    return g.title ? [{ id: `cms-sec-${gi}`, label: g.title, anchor: g.anchor }] : [];
   });
-  const jumpTo = (id: string) => {
+  const jumpTo = (id: string, anchor: string | null) => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     document.getElementById(id)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    follow(anchor);
   };
+
+  const anchorFor = (page: Parameters<NonNullable<typeof def.previewAnchor>>[0]) => def.previewAnchor?.(page, previewItem) ?? null;
+  const pagePreview = !!def.previewPages;
 
   /* 새 항목의 주소·번호 칸 — 자동으로 채워 두므로 첫 묶음 맨 아래에 둠 (이미 있는 항목은 제목 아래에 주소가 보임) */
   const keyField =
@@ -418,22 +454,29 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
           ) : (
             <a
               className="cms-back"
-              href={`#/${collection}`}
+              href={`#/${backPath}`}
               onClick={(e) => {
                 e.preventDefault();
-                navigate(collection);
+                navigate(backPath);
               }}
             >
-              ← {def.label} 목록
+              ← {backLabel}
             </a>
           )}
           <h1 className="cms-h1">
-            {move ? move.buttonLabel : isNew ? `${def.itemLabel} 추가` : def.title(base ?? draft)}
+            {move ? move.buttonLabel : isSingle ? def.itemLabel : isNew ? `${def.itemLabel} 추가` : def.title(base ?? draft)}
             {(base ?? source)?.isSample ? <Badge tone="sample">예시</Badge> : null}
           </h1>
           {move && srcDef && source ? (
             <p className="cms-lead">
               {srcDef.itemLabel} 「{srcDef.title(source)}」 → {def.itemLabel} · 사이트 주소 <code>{def.publicPath(slug)}</code> 그대로
+            </p>
+          ) : isSingle ? (
+            <p className="cms-lead">
+              {def.description}{' '}
+              <a href={withBasePath(def.publicPath(slug))} target="_blank" rel="noreferrer noopener">
+                사이트에서 보기 ↗
+              </a>
             </p>
           ) : !isNew ? (
             <p className="cms-lead">
@@ -456,7 +499,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
         <nav className="cms-jump" aria-label="이 화면 바로 가기">
           <span className="cms-jump__label">바로 가기</span>
           {jumps.map((j) => (
-            <button key={j.id} type="button" className="cms-jump__link" onClick={() => jumpTo(j.id)}>
+            <button key={j.id} type="button" className="cms-jump__link" onClick={() => jumpTo(j.id, j.anchor)}>
               {j.label}
             </button>
           ))}
@@ -551,7 +594,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
         </Notice>
       ) : null}
 
-      <div className={def.previewWide ? 'cms-editor__grid cms-editor__grid--stack' : 'cms-editor__grid'}>
+      <div className={pagePreview ? 'cms-editor__grid cms-editor__grid--page' : def.previewWide ? 'cms-editor__grid cms-editor__grid--stack' : 'cms-editor__grid'}>
         <form
           ref={formRef}
           id="cms-form"
@@ -564,7 +607,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
           }}
         >
           {groups.map((g, gi) => (
-            <section key={gi} className="cms-panel" aria-labelledby={g.title ? `cms-sec-${gi}` : undefined}>
+            <section key={gi} className="cms-panel" aria-labelledby={g.title ? `cms-sec-${gi}` : undefined} onFocusCapture={pagePreview ? () => follow(g.anchor) : undefined}>
               {g.title ? (
                 <h2 className="cms-h2" id={`cms-sec-${gi}`}>
                   {g.title}
@@ -581,18 +624,26 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
         </form>
 
         <aside className="cms-editor__side" aria-label="미리보기">
-          <div className="cms-sticky">
-            <h2 className="cms-h3">미리보기</h2>
-            <ItemPreview collection={collection} item={previewItem} images={env.images} />
-            <p className="cms-help">공개 사이트와 같은 모양으로 그린 미리보기입니다. {rm ? '담당자가 반영한 뒤' : '게시한 뒤'} 1~2분이 지나야 실제 사이트에 보입니다.</p>
-          </div>
+          {pagePreview && def.previewPages ? (
+            <div className="cms-sticky cms-sticky--page">
+              <h2 className="cms-h3">미리보기</h2>
+              <PagePreview pages={def.previewPages} files={previewFiles} images={env.images} focus={focus} anchorFor={anchorFor} />
+              <p className="cms-help">실제 페이지에 지금 고친 내용을 넣어 그린 미리보기입니다. 칸을 고치면 그 부분이 보이도록 따라갑니다. {rm ? '담당자가 반영한 뒤' : '게시한 뒤'} 1~2분이 지나야 실제 사이트에 보입니다.</p>
+            </div>
+          ) : (
+            <div className="cms-sticky">
+              <h2 className="cms-h3">미리보기</h2>
+              <ItemPreview collection={collection} item={previewItem} images={env.images} />
+              <p className="cms-help">공개 사이트와 같은 모양으로 그린 미리보기입니다. {rm ? '담당자가 반영한 뒤' : '게시한 뒤'} 1~2분이 지나야 실제 사이트에 보입니다.</p>
+            </div>
+          )}
         </aside>
       </div>
 
       <div className="cms-actionbar">
         <div className="cms-actionbar__inner">
           <div className="cms-actionbar__left">
-            {!isNew ? (
+            {canDelete ? (
               <Btn variant="danger" size="s" busy={saving === 'delete'} disabled={saving !== null} onClick={() => setAskDelete(true)}>
                 이 {def.itemLabel} 삭제
               </Btn>
@@ -602,7 +653,7 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
             <span className={showErrors && errorCount ? 'cms-actionbar__hint is-error' : 'cms-actionbar__hint'}>
               {showErrors && errorCount ? `확인할 칸 ${errorCount}개` : changed ? (rm ? '보내지 않은 수정이 있습니다' : '게시하지 않은 수정이 있습니다') : ''}
             </span>
-            <Btn variant="ghost" onClick={() => navigate(isMove ? sourcePath : collection)} disabled={saving !== null}>
+            <Btn variant="ghost" onClick={() => navigate(isMove ? sourcePath : backPath)} disabled={saving !== null}>
               취소
             </Btn>
             <Btn variant="primary" type="submit" form="cms-form" busy={saving === 'save'} disabled={saving !== null || imageBusy !== null}>
@@ -644,12 +695,16 @@ export function ItemEditor({ collection, itemKey, moveFrom = null }: { collectio
                     : `${isNew ? '아래 내용으로' : `${changeCount}개 칸이 바뀝니다.`} 게시하면 1~2분 뒤 공개 사이트에 반영되고, 누가 게시했는지 변경 기록에 남습니다.`}
             </p>
             {dropped.length ? <p className="cms-help cms-dialog__lead">옮기지 않는 칸: {dropped.join(', ')}</p> : null}
-            <div className={def.previewWide ? 'cms-confirm cms-confirm--stack' : 'cms-confirm'}>
+            {pagePreview ? (
               <ChangeTable def={def} before={base} after={confirming.item} projects={snapshot?.projects ?? []} images={confirming.images} request={rm} />
-              <div className="cms-confirm__preview">
-                <ItemPreview collection={collection} item={confirming.item} images={confirming.images} />
+            ) : (
+              <div className={def.previewWide ? 'cms-confirm cms-confirm--stack' : 'cms-confirm'}>
+                <ChangeTable def={def} before={base} after={confirming.item} projects={snapshot?.projects ?? []} images={confirming.images} request={rm} />
+                <div className="cms-confirm__preview">
+                  <ItemPreview collection={collection} item={confirming.item} images={confirming.images} />
+                </div>
               </div>
-            </div>
+            )}
             {rm && changeCount > 0 ? <MemoField value={memo} onChange={setMemo} /> : null}
           </>
         ) : null}

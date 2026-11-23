@@ -1,0 +1,147 @@
+{
+  "meta": {
+    "note": "페이지 문구 — 각 페이지의 제목·소개 문장·섹션 제목·버튼 이름입니다. 관리 화면 ‘페이지 문구’에서 페이지별로 고칩니다. 여러 페이지에 함께 나오는 연구실 이름·슬로건·소개문은 brand.json, 소속·연락처는 site.json, 지도교수 정보는 profile.json, 연구 분야 설명은 research-areas.json 에 있습니다. 제목(…Title, heroLines)은 한 줄에 하나씩 적은 목록이고, 값이 null 인 소개 문장은 화면에서 생략하거나(Projects·Publications) 자동 문장을 씁니다(Research)."
+  },
+  "home": {
+    "heroPrimary": "Explore Research",
+    "heroSecondary": "Join the Lab",
+    "heroCaption": "상명대학교 교육학과 이현우 교수 연구실",
+    "visionLabel": "Vision",
+    "visionStatement": "We use data and AI to understand how people learn, and design better learning experiences from what we learn.",
+    "visionLink": "About the Lab",
+    "keywords": [
+      "Educational Technology",
+      "Artificial Intelligence in Education",
+      "Learning Analytics",
+      "Instructional Design",
+      "Learning Sciences",
+      "HRD",
+      "Teacher Competency",
+      "Generative AI"
+    ],
+    "researchTitle": [
+      "Research Areas."
+    ],
+    "researchKo": "주요 연구 분야",
+    "researchDescription": "학습이 이루어지는 방식과 더 나은 교육의 가능성을 탐구합니다. 인공지능, 학습분석, 교수설계 등 다양한 연구를 통해 의미 있는 학습 경험을 설계합니다.",
+    "researchLink": "All research",
+    "pubsTitle": [
+      "Publications."
+    ],
+    "pubsKo": "논문 게재",
+    "pubsDescription": "교육공학과 학습과학을 기반으로 학습과 교육의 다양한 문제를 탐구합니다. 연구를 통해 축적한 지식과 발견을 학술논문으로 공유하고 있습니다.",
+    "pubsLink": "Explore publications",
+    "projectsTitle": [
+      "Research Projects."
+    ],
+    "projectsKo": "연구 과제",
+    "projectsDescription": "학습분석, 교수설계, 교육기술에 대한 탐구를 바탕으로 교육의 문제를 해결하고 새로운 가능성을 모색합니다.",
+    "projectsLink": "Explore projects",
+    "peopleTitle": [
+      "The people",
+      "behind the work."
+    ],
+    "peopleKo": "연구실 구성원",
+    "peopleLink": "Meet everyone",
+    "newsTitle": [
+      "Latest from",
+      "the lab."
+    ],
+    "newsKo": "연구실 소식",
+    "newsLink": "All news"
+  },
+  "about": {
+    "heroLines": [
+      "Learning Experience,",
+      "Analytics & Design."
+    ],
+    "overviewTitle": "Overview",
+    "overviewKo": "연구실 소개",
+    "overviewStatement": "LEAD stands for Learning Experience, Analytics & Design: we understand how people learn with data and AI, and design better learning experiences from what we learn.",
+    "visionTitle": "Vision",
+    "visionKo": "연구 비전",
+    "visionStatement": "We start from the learner’s experience, read it through analytics, improve it by design — and judge every AI tool by the learning it produces.",
+    "joinTitle": "Join us",
+    "joinKo": "연구실 참여 안내",
+    "joinLead": "대학원 진학, 공동연구, 자문 제안을 기다립니다. 연구실 참여 절차와 연락 방법은 Contact 페이지에서 안내합니다.",
+    "joinPrimary": "Contact the Lab",
+    "joinSecondary": "Explore research"
+  },
+  "research": {
+    "heroLines": [
+      "Research Areas"
+    ],
+    "heroKo": "주요 연구 분야",
+    "heroLead": null
+  },
+  "projects": {
+    "heroLines": [
+      "Projects"
+    ],
+    "heroKo": "연구 과제",
+    "heroLead": null
+  },
+  "publications": {
+    "heroLines": [
+      "Publications"
+    ],
+    "heroKo": "논문·학술발표",
+    "heroLead": null
+  },
+  "people": {
+    "heroLines": [
+      "People"
+    ],
+    "heroKo": "연구실 구성원",
+    "heroLead": "LEAD AI Lab에서 함께 연구하는 재학생·연구원과 졸업생을 소개합니다.",
+    "membersTitle": [
+      "Current members."
+    ],
+    "membersKo": "재학생·연구원",
+    "emptyTitle": "구성원 소개를 준비하고 있습니다.",
+    "emptyText": "재학생·연구원 소개는 준비되는 대로 이곳에 게시됩니다.",
+    "alumniTitle": [
+      "Alumni."
+    ],
+    "alumniKo": "졸업생"
+  },
+  "books": {
+    "heroLines": [
+      "Books"
+    ],
+    "heroKo": "저역서",
+    "heroLead": "저술하고 번역한 책을 최신 출간순으로 소개합니다."
+  },
+  "news": {
+    "heroLines": [
+      "News"
+    ],
+    "heroKo": "연구실 소식",
+    "heroLead": "공지, 학술대회, 연구 성과, 수상·선정, 행사, 구성원 소식을 분류별로 모아 봅니다."
+  },
+  "contact": {
+    "heroLines": [
+      "Let’s talk."
+    ],
+    "heroKo": "연락처와 연구실 참여 안내",
+    "heroLead": "LEAD AI Lab에 대한 대학원 진학 상담, 공동연구 제안, 기타 문의를 환영합니다.",
+    "formTitle": "Send a message",
+    "formNote": "진학 상담, 공동연구 제안, 기타 문의 내용을 남겨 주세요.",
+    "joinTitle": "Joining the lab",
+    "joinKo": "연구실 참여 안내",
+    "faq": [
+      {
+        "title": "대학원 진학을 희망합니다. 무엇을 준비해야 하나요?",
+        "content": "상명대학교 일반대학원 교육학과 모집 요강에서 지원 시기와 필요 서류를 확인하고, 지원 전에 연구실로 연락해 사전 면담을 신청해 주세요."
+      },
+      {
+        "title": "연구실 면담은 어떻게 신청하나요?",
+        "content": "연구실 전화(02-2287-5456)로 면담 가능 시간을 문의해 주세요."
+      },
+      {
+        "title": "공동연구·자문 제안은 어디로 보내나요?",
+        "content": "제안 개요(목적·기간·역할)를 정리해 연구실로 연락해 주세요."
+      }
+    ]
+  }
+}

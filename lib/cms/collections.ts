@@ -5,14 +5,39 @@
  * 데이터 파일(content/data/*.json)과 content/types.ts 의 형식에 맞춰 여기에 정의를 하나 더 추가하면 됩니다.
  *
  * - 주소(slug)로 구분하는 항목: 소식·구성원·졸업생 — 편집자가 영문 주소를 정함
- * - 번호(id)로 구분하는 항목: 논문(j)·저역서(b)·학술발표(c)·연구 과제(p) — 게시할 때 종류별 가장 큰 번호 + 1 을 자동으로 붙임
+ * - 번호(id)로 구분하는 항목: 논문(j)·저역서(b)·학술발표(c)·연구 과제(p)·지도교수 경력(career-) — 게시할 때 종류별 가장 큰 번호 + 1 을 자동으로 붙임
  *   (논문·저역서·학술발표는 publications.json 한 배열에 type 으로 섞여 있어 match 로 나눠 보여 줍니다)
+ * - 한 덩어리 문서(single): 연구실 이름·소개(brand.json)·소속·연락처(site.json)·지도교수(profile.json)·페이지 문구(pages.json 의 페이지별 칸)
+ *   — 목록 없이 바로 편집 화면이 열리고, 추가·삭제가 없습니다. 미리보기는 실제 페이지(components/pages/*)를 그대로 그립니다(previewPages).
  */
 import { researchAreas } from '@/content/research-areas';
 import { alumnusDegreeLabels, formatDate, memberRoleLabels, newsCategoryLabels, scopeLabels } from '@/lib/content';
 import type { MemberRole, NewsCategory } from '@/content/types';
+import type { PageId } from '@/content/pages';
+import { researchAutoLead } from '@/lib/site-docs';
 
-export type CollectionId = 'news' | 'members' | 'alumni' | 'journals' | 'books' | 'conferences' | 'projects';
+export type CollectionId =
+  | 'news'
+  | 'members'
+  | 'alumni'
+  | 'journals'
+  | 'books'
+  | 'conferences'
+  | 'projects'
+  | 'brand'
+  | 'site'
+  | 'professor'
+  | 'career'
+  | 'areas'
+  | 'page-home'
+  | 'page-about'
+  | 'page-research'
+  | 'page-projects'
+  | 'page-publications'
+  | 'page-people'
+  | 'page-books'
+  | 'page-news'
+  | 'page-contact';
 
 /** JSON 값 — 항목은 데이터 파일의 객체 그대로 다룹니다 */
 export type Item = Record<string, unknown>;
@@ -21,6 +46,8 @@ export type FieldType =
   | 'text'
   | 'textarea'
   | 'paragraphs'
+  /** 한 줄에 하나씩 적는 목록 (제목 줄 나눔) — 문자열 배열로 저장 */
+  | 'lines'
   | 'select'
   | 'areas'
   | 'tags'
@@ -61,6 +88,10 @@ export interface FieldDef {
   addLabel?: string;
   /** list: 줄마다 '사이트에 표시' 체크박스 — 끄면 그 줄에 hidden: true 를 저장해 공개 화면에서 뺍니다 */
   hideable?: boolean;
+  /** list: 폼에 없는 줄 속 칸(예: LEAD 네 축의 key·areas)을 지우지 않고 그대로 둠 */
+  keepExtra?: boolean;
+  /** 이 칸부터 시작하는 묶음을 고칠 때 페이지 미리보기가 보여 줄 곳 (CSS 선택자, section 과 함께 씀) */
+  anchor?: string;
   /** 폼에서 이 칸 위에 소제목을 붙임 */
   section?: string;
   /** 좁은 칸 (한 줄에 두 개) */
@@ -97,6 +128,10 @@ export interface CollectionDef {
   validate?: (item: Item) => Record<string, string>;
   /** 목록 순서가 화면 순서인지 (구성원) */
   orderable: boolean;
+  /** orderable: 순서를 바꿨을 때 안내 ('… 이 순서대로 나옵니다.') */
+  orderNote?: string;
+  /** orderable: 목록 위 도움말 */
+  orderHint?: string;
   /** 목록을 묶음별로 나눠 보여 줌 (구성원: 과정별) — orderable 이면 같은 묶음 안에서만 순서를 바꿈 */
   listGroups?: { label: string; test: (item: Item) => boolean }[];
   /** 공개 화면 주소 */
@@ -121,6 +156,19 @@ export interface CollectionDef {
    * 사진 파일은 그대로 쓰고, convert 가 넘겨주지 않는 칸(이 메뉴에 없는 칸)은 버립니다.
    */
   moveFrom?: { collection: CollectionId; buttonLabel: string; convert: (item: Item) => Item; hint: string };
+  /**
+   * 한 덩어리 문서 — 목록이 아니라 파일 전체(path: null) 또는 파일 안 한 칸(path: 'home')이 항목 하나입니다.
+   * key 는 화면 주소·사진 파일 이름에 씁니다. 추가·삭제·순서 바꾸기가 없습니다.
+   */
+  single?: { key: string; path: string | null };
+  /** false 면 새 항목을 만들 수 없음 (연구 분야처럼 정해진 항목만 고침). 기본 true */
+  canCreate?: boolean;
+  /** false 면 삭제 버튼이 없음. 기본 true */
+  canDelete?: boolean;
+  /** 미리보기를 카드 대신 실제 페이지로 — 고르는 순서대로 탭이 생김 (components/cms/PagePreview.tsx) */
+  previewPages?: PageId[];
+  /** 페이지 미리보기를 열 때 보여 줄 곳 (CSS 선택자) — 칸 묶음의 anchor 가 없을 때 */
+  previewAnchor?: (page: PageId, item: Item) => string | null;
 }
 
 /* ------------------------------------------------------------------ 공통 */
@@ -290,6 +338,8 @@ const members: CollectionDef = {
   uniqueAcross: ['members', 'alumni'],
   newPosition: 'end',
   orderable: true,
+  orderNote: 'People 페이지에 과정별로 이 순서대로 나옵니다.',
+  orderHint: '오른쪽 ↑ ↓ 로 같은 과정 안의 순서를 바꾼 뒤 ‘이 순서로 게시’를 누르면 People 페이지 순서가 바뀝니다.',
   listGroups: memberRoles.map((r) => ({ label: memberRoleLabels[r], test: (item: Item) => item.role === r })),
   publicPath: (key) => `/people/${key}`,
   fields: [
@@ -617,12 +667,468 @@ const projects: CollectionDef = {
   sort: (a, b) => pointKey(b.start).localeCompare(pointKey(a.start)) || str(b.id).localeCompare(str(a.id), undefined, { numeric: true }),
 };
 
+/* ------------------------------------------------------------ 연구실 정보 */
+
+const SITE_GROUP = '연구실 정보';
+/** 페이지별 문구 메뉴 묶음 — 관리 메뉴에서는 '페이지 문구' 한 줄로 모아 보여 줌 */
+export const PAGE_GROUP = '페이지 문구';
+
+const EMAIL_PATTERN = /^[^\s@,;<>()"]+@[^\s@,;<>()"]+\.[^\s@,;<>()"]+$/;
+const PHONE_PATTERN = /^[0-9+\-() ]{7,20}$/;
+const YM_PATTERN = /^\d{4}\.\d{2}$/;
+
+/** 한 덩어리 문서 정의의 공통 부분 — 목록·추가·삭제·주소가 없음 */
+function singleDef(d: {
+  id: CollectionId;
+  group: string;
+  label: string;
+  itemLabel: string;
+  description: string;
+  where: string;
+  file: string;
+  /** 파일 안의 칸 이름 (null 이면 파일 전체) */
+  path: string | null;
+  /** 이 문서가 주로 나오는 공개 페이지 주소 */
+  page: string;
+  fields: FieldDef[];
+  previewPages: PageId[];
+  previewAnchor?: CollectionDef['previewAnchor'];
+  validate?: CollectionDef['validate'];
+}): CollectionDef {
+  return {
+    id: d.id,
+    group: d.group,
+    label: d.label,
+    itemLabel: d.itemLabel,
+    description: d.description,
+    where: d.where,
+    file: d.file,
+    arrayKey: '',
+    keyField: 'id',
+    uniqueAcross: [],
+    newPosition: 'end',
+    orderable: false,
+    single: { key: d.path ?? d.id, path: d.path },
+    canCreate: false,
+    canDelete: false,
+    publicPath: () => d.page,
+    fields: d.fields,
+    previewPages: d.previewPages,
+    previewAnchor: d.previewAnchor,
+    validate: d.validate,
+    defaults: () => ({}),
+    suggestKey: () => '',
+    title: () => d.label,
+    meta: () => d.where,
+    thumb: () => null,
+    listThumb: 'none',
+  };
+}
+
+const brandDoc = singleDef({
+  id: 'brand',
+  group: SITE_GROUP,
+  label: '연구실 이름·소개',
+  itemLabel: '연구실 이름·소개',
+  description: '여러 페이지에 함께 나오는 연구실 이름·슬로건·소개 문단·LEAD 네 축입니다. 한 번 고치면 Home·About·바닥글 등 나오는 곳이 모두 바뀝니다. 로고 글자(LEAD AI LAB.)와 모양은 디자인 파일에서 고칩니다.',
+  where: 'Home 첫 화면 · About · 바닥글 · 머리말',
+  file: 'content/data/brand.json',
+  path: null,
+  page: '/',
+  previewPages: ['home', 'about'],
+  fields: [
+    { name: 'name', label: '영문 이름', type: 'text', required: true, half: true, section: '이름', placeholder: 'LEAD AI Lab' },
+    { name: 'nameKo', label: '국문 이름', type: 'text', required: true, half: true },
+    { name: 'meaning', label: 'LEAD 의 뜻', type: 'text', required: true, help: 'Home 첫 화면 위쪽과 바닥글에 작게 나옵니다.' },
+    { name: 'affiliation', label: '영문 소속 표기', type: 'text', required: true, help: '머리말 로고 옆과 바닥글에 나옵니다.' },
+    { name: 'tagline', label: '영문 슬로건', type: 'text', required: true, section: '슬로건', help: 'Home 첫 화면의 큰 이름 바로 아래에 나옵니다.' },
+    { name: 'taglineLines', label: '바닥글 큰 문구', type: 'lines', required: true, rows: 2, help: '모든 페이지 바닥글에 크게 나옵니다. 보통 위 영문 슬로건을 두 줄로 나눠 적습니다 — 한 줄에 하나씩.' },
+    { name: 'sloganKo', label: '국문 슬로건', type: 'text', required: true, help: 'Home 첫 화면과 About › Vision 에 나옵니다.' },
+    {
+      name: 'intro',
+      label: '소개 문단',
+      type: 'paragraphs',
+      required: true,
+      rows: 6,
+      section: '소개 문단',
+      help: '두 문단으로, 문단 사이에 빈 줄을 하나 넣어 적습니다. 첫 문단은 Home 첫 화면·About 첫머리에, 둘째 문단은 Home 의 Vision 옆·About › Vision 에 나옵니다.',
+    },
+    { name: 'fields', label: '연구 분야 키워드', type: 'tags', section: '키워드', help: '쉼표로 구분합니다. About › Overview 의 Focus 줄과 검색 엔진용 키워드에 쓰입니다. (Home 의 흐르는 키워드 띠는 ‘페이지 문구 › Home’에서 고칩니다.)' },
+    {
+      name: 'pillars',
+      label: 'LEAD 네 축',
+      type: 'list',
+      section: 'LEAD 네 축',
+      addLabel: '축 추가',
+      keepExtra: true,
+      help: 'About › Vision 에서 하나씩 펼쳐 보는 목록입니다. 줄마다 연결된 연구 분야 링크는 그대로 두고, 새로 추가한 줄은 연구 분야 링크 없이 나옵니다.',
+      fields: [
+        { name: 'label', label: '영문', type: 'text', required: true, placeholder: 'Learning Experience' },
+        { name: 'ko', label: '국문', type: 'text', required: true, placeholder: '학습경험' },
+        { name: 'text', label: '설명', type: 'textarea', required: true },
+      ],
+    },
+  ],
+  validate: (item): Record<string, string> => (Array.isArray(item.intro) && item.intro.length !== 2 ? { intro: `소개 문단은 두 개로 적어 주세요 (지금 ${item.intro.length}개). 문단 사이에는 빈 줄을 하나 넣습니다.` } : {}),
+});
+
+const siteDoc = singleDef({
+  id: 'site',
+  group: SITE_GROUP,
+  label: '소속·연락처',
+  itemLabel: '소속·연락처',
+  description: '대학·학과 이름과 연구실 위치·전화·이메일입니다. About·Contact·바닥글·메뉴에 함께 나옵니다.',
+  where: 'About · Contact · 바닥글 · 메뉴',
+  file: 'content/data/site.json',
+  path: null,
+  page: '/contact',
+  previewPages: ['contact', 'about'],
+  previewAnchor: (page) => (page === 'about' ? '#overview' : null),
+  fields: [
+    { name: 'university', label: '대학', type: 'text', required: true, half: true, section: '소속' },
+    { name: 'universityEn', label: '대학 (영문)', type: 'text', required: true, half: true },
+    { name: 'department', label: '학과', type: 'text', required: true, half: true },
+    { name: 'departmentEn', label: '학과 (영문)', type: 'text', required: true, half: true },
+    { name: 'major', label: '전공', type: 'text', required: true, half: true },
+    { name: 'majorEn', label: '전공 (영문)', type: 'text', required: true, half: true },
+    { name: 'building', label: '건물', type: 'text', required: true, half: true, section: '연락처' },
+    { name: 'room', label: '호실', type: 'text', required: true, half: true },
+    { name: 'street', label: '도로명 주소', type: 'text', empty: 'null', help: '확인된 경우만 적습니다. 있으면 Contact 와 바닥글에 나옵니다.' },
+    { name: 'phone', label: '전화', type: 'text', required: true, half: true, placeholder: '02-2287-5456', pattern: PHONE_PATTERN, patternHint: '02-2287-5456 처럼 숫자와 하이픈(-)으로 적어 주세요.' },
+    { name: 'email', label: '문의 이메일', type: 'text', empty: 'null', half: true, pattern: EMAIL_PATTERN, patternHint: 'name@example.com 형식으로 적어 주세요.', help: 'Contact 문의 폼이 이 주소로 메일 앱을 엽니다. 비우면 메일 주소와 메일 보내기가 숨습니다.' },
+    { name: 'emailIsSample', label: '예시 주소', type: 'checkbox', checkboxLabel: '예시(가상) 주소입니다 — 화면에 ‘예시’ 배지가 붙고 바닥글에는 싣지 않습니다' },
+  ],
+  validate: (item): Record<string, string> =>
+    typeof item.email === 'string' && /@example\.(com|org|net)$/i.test(item.email) && item.emailIsSample !== true
+      ? { emailIsSample: 'example 주소는 배달되지 않는 예시 주소입니다. 실제 주소로 바꾸거나 ‘예시 주소’를 켜 주세요.' }
+      : {},
+});
+
+const professorDoc = singleDef({
+  id: 'professor',
+  group: SITE_GROUP,
+  label: '지도교수',
+  itemLabel: '지도교수 정보',
+  description: 'About › Professor 의 소개와 Home 첫 화면 사진입니다. 경력(보직)은 ‘지도교수 경력’에서 한 줄씩 고칩니다.',
+  where: 'Home 첫 화면 사진 · About › Professor',
+  file: 'content/data/profile.json',
+  path: null,
+  page: '/about#professor',
+  previewPages: ['about', 'home'],
+  previewAnchor: (page) => (page === 'about' ? '#professor' : null),
+  fields: [
+    { name: 'name', label: '이름', type: 'text', required: true, half: true, section: '기본 정보' },
+    { name: 'nameEn', label: '영문 이름', type: 'text', empty: 'null', half: true },
+    { name: 'title', label: '화면에 보일 직위', type: 'text', required: true, half: true, placeholder: '교수' },
+    { name: 'affiliation', label: '소속', type: 'text', required: true, half: true },
+    { name: 'photo', label: '사진', type: 'image', empty: 'null', image: { mode: 'crop', width: 900, height: 1125, dir: 'people' }, section: '사진', help: '세로 4:5 비율로 잘라 저장합니다. Home 첫 화면과 About 에 나옵니다. 사진은 공개 저장소에 올라갑니다.' },
+    { name: 'photoAlt', label: '사진 설명', type: 'text', required: true, placeholder: '이현우 교수', help: '화면 낭독기가 읽는 한 줄 설명입니다.' },
+    {
+      name: 'education',
+      label: '학력',
+      type: 'list',
+      section: '학력',
+      addLabel: '학력 추가',
+      keepExtra: true,
+      help: 'About › Professor 의 Education 에 이 순서대로 나옵니다. 세부 설명을 비우면 전공이 대신 나옵니다.',
+      fields: [
+        { name: 'institution', label: '학교', type: 'text', required: true, placeholder: 'Pennsylvania State University' },
+        { name: 'degree', label: '학위', type: 'text', required: true, placeholder: '박사' },
+        { name: 'date', label: '취득', type: 'text', required: true, placeholder: '2008.08' },
+        { name: 'program', label: '전공', type: 'text', placeholder: 'Instructional Systems' },
+        { name: 'detail', label: '세부 설명', type: 'text', placeholder: '세부전공: Instructional Systems' },
+      ],
+    },
+    { name: 'office', label: '연구실', type: 'text', required: true, half: true, section: '연락처', placeholder: '중앙교수회관(S관) S214' },
+    { name: 'phone', label: '전화', type: 'text', required: true, half: true, pattern: PHONE_PATTERN, patternHint: '02-2287-5456 처럼 숫자와 하이픈(-)으로 적어 주세요.' },
+    { name: 'email', label: '공개 이메일', type: 'text', empty: 'null', pattern: EMAIL_PATTERN, patternHint: 'name@example.com 형식으로 적어 주세요.', help: '공개해도 되는 주소만 적습니다. 비우면 나오지 않습니다.' },
+    { name: 'interestAreas', label: '연구 관심 분야', type: 'areas', section: '연구 관심 분야' },
+    { name: 'bio', label: '소개', type: 'textarea', rows: 4, empty: 'null', section: '소개', help: '연구실이 확정한 문안만 적습니다. 비우면 소개 단락이 나오지 않습니다.' },
+  ],
+});
+
+const career: CollectionDef = {
+  id: 'career',
+  group: SITE_GROUP,
+  label: '지도교수 경력',
+  itemLabel: '경력',
+  where: 'About › Professor',
+  description: 'About › Professor 의 보직·경력입니다. 끝난 시점을 비워 두면 ‘Current roles’(지금 맡은 일)에, 끝난 시점이 있으면 ‘Career’ 목록에 시작이 늦은 것부터 나옵니다.',
+  file: 'content/data/career.json',
+  arrayKey: 'items',
+  keyField: 'id',
+  autoKey: { prefix: 'career-', width: 2 },
+  uniqueAcross: ['items'],
+  newPosition: 'start',
+  orderable: false,
+  publicPath: () => '/about#professor',
+  previewPages: ['about'],
+  previewAnchor: () => '#professor',
+  fields: [
+    { name: 'role', label: '직책·역할', type: 'text', required: true, placeholder: '교육학과 학과장' },
+    { name: 'org', label: '기관', type: 'text', required: true, placeholder: '상명대학교' },
+    { name: 'start', label: '시작', type: 'text', required: true, half: true, placeholder: '2026.03', pattern: YM_PATTERN, patternHint: '2026.03 처럼 연도.월 로 적어 주세요.' },
+    { name: 'end', label: '끝', type: 'text', empty: 'null', half: true, placeholder: '지금 맡고 있으면 비움', pattern: YM_PATTERN, patternHint: '2027.02 처럼 연도.월 로 적어 주세요.' },
+  ],
+  defaults: () => ({ id: '', role: '', org: '', period: '', start: '', end: null, current: true }),
+  derive: (item) => {
+    const start = str(item.start).trim();
+    const end = typeof item.end === 'string' && item.end.trim() ? item.end.trim() : null;
+    return { ...item, period: `${start}~${end ?? ''}`, end, current: end === null };
+  },
+  validate: (item): Record<string, string> => (str(item.end) && str(item.start) && str(item.end) < str(item.start) ? { end: '끝난 시점이 시작보다 빠릅니다.' } : {}),
+  suggestKey: () => '',
+  title: (item) => [str(item.org), str(item.role)].filter(Boolean).join(' ') || '(직책 없음)',
+  meta: (item) => [str(item.period), item.current ? '지금 맡고 있음' : ''].filter(Boolean).join(' · '),
+  thumb: () => null,
+  listThumb: 'none',
+  sort: (a, b) => str(b.start).localeCompare(str(a.start)) || str(b.id).localeCompare(str(a.id), undefined, { numeric: true }),
+};
+
+const areas: CollectionDef = {
+  id: 'areas',
+  group: SITE_GROUP,
+  label: '연구 분야',
+  itemLabel: '연구 분야',
+  where: 'Home · Research · 분야별 페이지',
+  description: '다섯 가지 연구 분야의 이름·요약·설명·키워드입니다. 이 목록의 순서가 사이트에 나오는 순서입니다. 분야를 새로 만들거나 없애는 일은 논문·과제 분류와 함께 바꿔야 해서 담당자가 파일로 합니다.',
+  file: 'content/data/research-areas.json',
+  arrayKey: 'items',
+  keyField: 'slug',
+  uniqueAcross: ['items'],
+  newPosition: 'end',
+  orderable: true,
+  orderNote: 'Home·Research·About 등 연구 분야가 나오는 곳에 이 순서대로 나옵니다.',
+  orderHint: '오른쪽 ↑ ↓ 로 순서를 바꾼 뒤 ‘이 순서로 게시’를 누르면 사이트의 연구 분야 순서가 바뀝니다.',
+  canCreate: false,
+  canDelete: false,
+  publicPath: (key) => `/research/${key}`,
+  previewPages: ['research', 'home'],
+  previewAnchor: (page, item) => (page === 'research' && str(item.slug) ? `#${str(item.slug)}` : page === 'home' ? '[aria-labelledby="home-research"]' : null),
+  fields: [
+    { name: 'title', label: '영문 이름', type: 'text', required: true, half: true },
+    { name: 'ko', label: '국문 이름', type: 'text', required: true, half: true },
+    { name: 'summary', label: '요약', type: 'textarea', rows: 3, required: true, help: 'Home 의 분야 카드와 Research 페이지에 크게 나오는 한두 문장입니다.' },
+    { name: 'description', label: '설명', type: 'textarea', rows: 6, required: true, help: 'Research 페이지와 분야별 페이지에 나오는 자세한 설명입니다.' },
+    { name: 'keywords', label: '키워드', type: 'tags', help: '쉼표로 구분합니다. 분야 설명 아래 꼬리표로 나옵니다.' },
+  ],
+  defaults: () => ({ id: '', slug: '', title: '', ko: '', summary: '', description: '', keywords: [], media: '', provisional: true }),
+  suggestKey: () => '',
+  title: (item) => str(item.title) || '(이름 없음)',
+  meta: (item) => str(item.ko),
+  thumb: () => null,
+  listThumb: 'none',
+};
+
+/* -------------------------------------------------------------- 페이지 문구 */
+
+const PAGES_FILE = 'content/data/pages.json';
+
+const linesHelp = '한 줄에 하나씩 적습니다. 줄을 나눈 자리에서 화면의 제목도 줄이 바뀝니다.';
+
+/** 하위 페이지 첫머리 칸 — 영문 제목(줄), 국문 제목, 소개 문장 */
+function heroFields(leadHelp: string, leadPlaceholder?: string): FieldDef[] {
+  return [
+    { name: 'heroLines', label: '영문 제목', type: 'lines', required: true, rows: 2, section: '첫머리', anchor: '.lab-phero', help: linesHelp },
+    { name: 'heroKo', label: '국문 제목', type: 'text', required: true },
+    { name: 'heroLead', label: '소개 문장', type: 'textarea', rows: 3, empty: 'null', help: leadHelp, placeholder: leadPlaceholder },
+  ];
+}
+
+/** 페이지 하나의 문구 정의 */
+function pageDef(d: { page: PageId; label: string; path: string; where: string; description: string; fields: FieldDef[] }): CollectionDef {
+  return singleDef({
+    id: `page-${d.page}` as CollectionId,
+    group: PAGE_GROUP,
+    label: d.label,
+    itemLabel: `${d.label} 문구`,
+    description: d.description,
+    where: d.where,
+    file: PAGES_FILE,
+    path: d.page,
+    page: d.path,
+    previewPages: [d.page],
+    fields: d.fields,
+  });
+}
+
+const pageHome = pageDef({
+  page: 'home',
+  label: 'Home',
+  path: '/',
+  where: '첫 화면 버튼·사진 설명, Vision 문장, 키워드 띠, 섹션 제목·설명',
+  description: '첫 화면 아래로 이어지는 섹션들의 제목·설명·링크 이름입니다. 첫 화면의 큰 이름 아래 슬로건·국문 슬로건·첫 문단은 여러 페이지에 함께 나오는 문구라 ‘연구실 정보 › 연구실 이름·소개’에서 고칩니다.',
+  fields: [
+    { name: 'heroPrimary', label: '첫째 버튼 (Research 로)', type: 'text', required: true, half: true, section: '첫 화면', anchor: '.lab-hero' },
+    { name: 'heroSecondary', label: '둘째 버튼 (Contact 로)', type: 'text', required: true, half: true },
+    { name: 'heroCaption', label: '사진 아래 설명', type: 'text', required: true, help: '지도교수 사진은 ‘연구실 정보 › 지도교수’에서 바꿉니다.' },
+    { name: 'visionLabel', label: '작은 제목', type: 'text', required: true, half: true, section: 'Vision', anchor: '[aria-labelledby="home-vision"]' },
+    { name: 'visionLink', label: '링크 이름 (About 으로)', type: 'text', required: true, half: true },
+    { name: 'visionStatement', label: '큰 문장', type: 'textarea', rows: 3, required: true, help: '스크롤하면 한 단어씩 진해지는 문장입니다. 옆의 작은 문단은 ‘연구실 이름·소개’의 둘째 소개 문단입니다.' },
+    { name: 'keywords', label: '키워드', type: 'tags', required: true, section: '키워드 띠', anchor: '.lab-marquee', help: '쉼표로 구분합니다. Vision 아래에서 옆으로 흐르는 띠에 이 순서대로 나옵니다.' },
+    { name: 'researchTitle', label: '제목', type: 'lines', required: true, rows: 2, section: 'Research Areas', anchor: '[aria-labelledby="home-research"]', help: linesHelp },
+    { name: 'researchKo', label: '국문 제목', type: 'text', required: true, half: true },
+    { name: 'researchLink', label: '링크 이름', type: 'text', required: true, half: true },
+    { name: 'researchDescription', label: '설명', type: 'textarea', rows: 3, required: true, help: '아래 분야 카드의 이름·요약은 ‘연구실 정보 › 연구 분야’에서 고칩니다.' },
+    { name: 'pubsTitle', label: '논문 탭 제목', type: 'lines', required: true, rows: 2, section: '최근 논문·연구 과제', anchor: '[aria-labelledby="home-feed"]', help: `Publications / Projects 단추로 바꿔 보는 섹션입니다. ${linesHelp}` },
+    { name: 'pubsKo', label: '논문 탭 국문 제목', type: 'text', required: true, half: true },
+    { name: 'pubsLink', label: '논문 탭 링크 이름', type: 'text', required: true, half: true },
+    { name: 'pubsDescription', label: '논문 탭 설명', type: 'textarea', rows: 3, required: true },
+    { name: 'projectsTitle', label: '과제 탭 제목', type: 'lines', required: true, rows: 2, help: '미리보기에서는 논문 탭이 보입니다 — 위쪽 Projects 단추를 누르면 과제 탭을 볼 수 있습니다.' },
+    { name: 'projectsKo', label: '과제 탭 국문 제목', type: 'text', required: true, half: true },
+    { name: 'projectsLink', label: '과제 탭 링크 이름', type: 'text', required: true, half: true },
+    { name: 'projectsDescription', label: '과제 탭 설명', type: 'textarea', rows: 3, required: true },
+    { name: 'peopleTitle', label: '제목', type: 'lines', required: true, rows: 2, section: '구성원 (지금은 숨김)', help: 'Home 의 구성원 미리보기는 2026-11-22 연구실 요청으로 꺼 두어 지금은 화면에 나오지 않습니다. 다시 켜는 것은 담당자가 파일 설정(content/site.ts 의 homeShowPeople)으로 합니다.' },
+    { name: 'peopleKo', label: '국문 제목', type: 'text', required: true, half: true },
+    { name: 'peopleLink', label: '링크 이름', type: 'text', required: true, half: true },
+    { name: 'newsTitle', label: '제목', type: 'lines', required: true, rows: 2, section: '최근 소식', anchor: '[aria-labelledby="home-news"]', help: linesHelp },
+    { name: 'newsKo', label: '국문 제목', type: 'text', required: true, half: true },
+    { name: 'newsLink', label: '링크 이름', type: 'text', required: true, half: true },
+  ],
+});
+
+const pageAbout = pageDef({
+  page: 'about',
+  label: 'About',
+  path: '/about',
+  where: '첫머리 제목, Overview·Vision 문장, Join us',
+  description: 'About 페이지의 제목과 섹션 문장입니다. 국문 제목(연구실 이름)·첫머리 소개·국문 슬로건·LEAD 네 축은 ‘연구실 이름·소개’에서, 지도교수 소개는 ‘지도교수’·‘지도교수 경력’에서 고칩니다.',
+  fields: [
+    { name: 'heroLines', label: '영문 제목', type: 'lines', required: true, rows: 2, section: '첫머리', anchor: '.lab-phero', help: linesHelp },
+    { name: 'overviewTitle', label: '제목', type: 'text', required: true, half: true, section: 'Overview', anchor: '#overview' },
+    { name: 'overviewKo', label: '국문 제목', type: 'text', required: true, half: true },
+    { name: 'overviewStatement', label: '큰 문장', type: 'textarea', rows: 3, required: true, help: '아래 연구실 정보 표(소속·위치 등)는 ‘소속·연락처’에서 고칩니다.' },
+    { name: 'visionTitle', label: '제목', type: 'text', required: true, half: true, section: 'Vision', anchor: '#vision' },
+    { name: 'visionKo', label: '국문 제목', type: 'text', required: true, half: true },
+    { name: 'visionStatement', label: '큰 문장', type: 'textarea', rows: 3, required: true },
+    { name: 'joinTitle', label: '제목', type: 'text', required: true, half: true, section: 'Join us', anchor: '[aria-labelledby="about-cta"]' },
+    { name: 'joinKo', label: '국문 제목', type: 'text', required: true, half: true },
+    { name: 'joinLead', label: '안내 문장', type: 'textarea', rows: 3, required: true },
+    { name: 'joinPrimary', label: '버튼 이름 (Contact 로)', type: 'text', required: true, half: true },
+    { name: 'joinSecondary', label: '링크 이름 (Research 로)', type: 'text', required: true, half: true },
+  ],
+});
+
+const pageResearch = pageDef({
+  page: 'research',
+  label: 'Research',
+  path: '/research',
+  where: '첫머리 제목·소개 문장',
+  description: 'Research(주요 연구 분야) 페이지의 첫머리입니다. 분야별 이름·요약·설명은 ‘연구실 정보 › 연구 분야’에서 고칩니다.',
+  fields: heroFields('비워 두면 연구 분야 이름으로 만든 문장(흐린 글자로 보이는 문장)이 자동으로 나옵니다.', researchAutoLead(researchAreas)),
+});
+
+const pageProjects = pageDef({
+  page: 'projects',
+  label: 'Projects',
+  path: '/projects',
+  where: '첫머리 제목',
+  description: 'Research › Projects(연구 과제 전체 목록) 페이지의 첫머리입니다. 과제 목록은 ‘연구 실적 › 연구 과제’에서 고칩니다.',
+  fields: heroFields('비워 두면 소개 문장 없이 제목만 나옵니다(2026-11-06 연구실 요청으로 지금은 비어 있음).'),
+});
+
+const pagePublications = pageDef({
+  page: 'publications',
+  label: 'Publications',
+  path: '/publications',
+  where: '첫머리 제목',
+  description: 'Research › Publications(논문·학술발표) 페이지의 첫머리입니다. 목록은 ‘연구 실적’에서 고칩니다.',
+  fields: heroFields('비워 두면 소개 문장 없이 제목만 나옵니다(2026-11-06 연구실 요청으로 지금은 비어 있음).'),
+});
+
+const pagePeople = pageDef({
+  page: 'people',
+  label: 'People',
+  path: '/people',
+  where: '첫머리, 구성원·졸업생 제목, 구성원이 없을 때 문구',
+  description: 'People 페이지의 제목과 안내 문구입니다. 구성원·졸업생 목록은 ‘소식·사람’에서 고칩니다.',
+  fields: [
+    ...heroFields('비워 두면 소개 문장 없이 제목만 나옵니다.'),
+    { name: 'membersTitle', label: '구성원 제목', type: 'lines', required: true, rows: 2, section: '구성원·졸업생', anchor: '#members', help: linesHelp },
+    { name: 'membersKo', label: '구성원 국문 제목', type: 'text', required: true },
+    { name: 'emptyTitle', label: '구성원이 없을 때 — 큰 글', type: 'text', required: true, help: '재학 구성원이 한 명도 없을 때만 나옵니다.' },
+    { name: 'emptyText', label: '구성원이 없을 때 — 작은 글', type: 'text', required: true },
+    { name: 'alumniTitle', label: '졸업생 제목', type: 'lines', required: true, rows: 2, help: linesHelp },
+    { name: 'alumniKo', label: '졸업생 국문 제목', type: 'text', required: true },
+  ],
+});
+
+const pageBooks = pageDef({
+  page: 'books',
+  label: 'Books',
+  path: '/books',
+  where: '첫머리 제목·소개 문장',
+  description: 'Books(저역서) 페이지의 첫머리입니다. 책 목록은 ‘연구 실적 › 저역서’에서 고칩니다.',
+  fields: heroFields('비워 두면 소개 문장 없이 제목만 나옵니다.'),
+});
+
+const pageNews = pageDef({
+  page: 'news',
+  label: 'News',
+  path: '/news',
+  where: '첫머리 제목·소개 문장',
+  description: 'News 페이지의 첫머리입니다. 소식 목록은 ‘소식·사람 › 소식’에서 고칩니다.',
+  fields: heroFields('비워 두면 소개 문장 없이 제목만 나옵니다.'),
+});
+
+const pageContact = pageDef({
+  page: 'contact',
+  label: 'Contact',
+  path: '/contact',
+  where: '첫머리, 문의 폼 제목, 연구실 참여 안내(자주 묻는 질문)',
+  description: 'Contact 페이지의 문구입니다. 왼쪽 연락처(위치·전화·이메일)는 ‘연구실 정보 › 소속·연락처’에서 고칩니다.',
+  fields: [
+    ...heroFields('비워 두면 소개 문장 없이 제목만 나옵니다.'),
+    { name: 'formTitle', label: '문의 폼 제목', type: 'text', required: true, section: '문의 폼', anchor: '.lab-contact__form' },
+    { name: 'formNote', label: '문의 폼 안내 문장', type: 'text', required: true },
+    { name: 'joinTitle', label: '제목', type: 'text', required: true, half: true, section: '연구실 참여 안내', anchor: '#join' },
+    { name: 'joinKo', label: '국문 제목', type: 'text', required: true, half: true },
+    {
+      name: 'faq',
+      label: '자주 묻는 질문',
+      type: 'list',
+      addLabel: '질문 추가',
+      help: '하나씩 펼쳐 보는 질문과 답입니다. 첫 질문은 처음부터 펼쳐져 있습니다.',
+      fields: [
+        { name: 'title', label: '질문', type: 'text', required: true },
+        { name: 'content', label: '답', type: 'textarea', required: true },
+      ],
+    },
+  ],
+});
+
 /* ------------------------------------------------------------------ 목록 */
 
-export const collections: Record<CollectionId, CollectionDef> = { news, members, alumni, journals, books, conferences, projects };
-export const collectionList: CollectionDef[] = [news, members, alumni, journals, books, conferences, projects];
+export const collections: Record<CollectionId, CollectionDef> = {
+  news,
+  members,
+  alumni,
+  journals,
+  books,
+  conferences,
+  projects,
+  brand: brandDoc,
+  site: siteDoc,
+  professor: professorDoc,
+  career,
+  areas,
+  'page-home': pageHome,
+  'page-about': pageAbout,
+  'page-research': pageResearch,
+  'page-projects': pageProjects,
+  'page-publications': pagePublications,
+  'page-people': pagePeople,
+  'page-books': pageBooks,
+  'page-news': pageNews,
+  'page-contact': pageContact,
+};
+export const collectionList: CollectionDef[] = Object.values(collections);
 
-/** 메뉴 묶음 순서대로 */
+/** 페이지 문구 메뉴 — 사이트 메뉴 순서대로 */
+export const pageTextList: CollectionDef[] = collectionList.filter((c) => c.group === PAGE_GROUP);
+
+
+/** 메뉴 묶음 순서대로 ('페이지 문구' 는 메뉴에서 한 줄 — 누르면 페이지 목록 #/pages) */
 export const collectionGroups: { title: string; items: CollectionDef[] }[] = Array.from(new Set(collectionList.map((c) => c.group))).map((title) => ({
   title,
   items: collectionList.filter((c) => c.group === title),
@@ -677,8 +1183,38 @@ export function keyOf(item: Item): string {
 
 /** 이 컬렉션에 속한 항목만 (한 배열을 여러 컬렉션이 나눠 쓸 때) */
 export function collectionItems(data: unknown, def: CollectionDef): Item[] {
+  if (def.single) {
+    const doc = singleOf(data, def);
+    return doc ? [doc] : [];
+  }
   const all = itemsOf(data, def.arrayKey);
   return def.match ? all.filter(def.match) : all;
+}
+
+/** 한 덩어리 문서(single)의 내용 — 파일 전체 또는 파일 안 한 칸 */
+export function singleOf(data: unknown, def: CollectionDef): Item | null {
+  if (!def.single || !data || typeof data !== 'object') return null;
+  const v = def.single.path ? (data as Record<string, unknown>)[def.single.path] : data;
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Item) : null;
+}
+
+/** 항목의 키 — 한 덩어리 문서는 정해 둔 key, 나머지는 주소(slug)·번호(id) */
+export function itemKeyOf(def: CollectionDef, item: Item): string {
+  return def.single ? def.single.key : keyOf(item);
+}
+
+/** 목록 칸 한 줄을 글로 — 확인 창·검토 요청 글에서 씀 (연구실 과제를 고른 줄은 과제 이름으로) */
+export function listRowText(f: FieldDef, row: Item, projects: { id: string; title: string; period: string }[]): string {
+  const parts = (f.fields ?? []).map((sub) => {
+    const v = row[sub.name];
+    if (sub.type === 'project' && typeof v === 'string' && v) {
+      const pj = projects.find((x) => x.id === v);
+      return pj ? `[연구실 과제] ${pj.title} (${pj.period})` : v;
+    }
+    return typeof v === 'string' ? v.trim() : '';
+  });
+  const line = parts.filter(Boolean).join(' · ');
+  return row.hidden === true ? `${line} — 사이트에 표시 안 함` : line;
 }
 
 /** 다음 자동 번호 — 같은 배열에서 그 접두어로 쓰인 가장 큰 번호 + 1 (예: j62 → j63) */

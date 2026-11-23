@@ -124,6 +124,71 @@ for (const n of news.items) {
   if (n.isSample) warn.push(`${n.slug}: 예시 콘텐츠 (화면에 '예시' 표시)`);
 }
 
+// research areas — 분야 id 는 위 AREAS(그리고 content/types.ts 의 AreaId)와 같아야 합니다
+const areaDoc = read('research-areas.json');
+unique(areaDoc.items.map((a) => a.id), 'research-areas.id');
+unique(areaDoc.items.map((a) => a.slug), 'research-areas.slug');
+assert(areaDoc.items.length === AREAS.length && AREAS.every((id) => areaDoc.items.some((a) => a.id === id)), `research-areas: 분야 id 는 ${AREAS.join(', ')} 이어야 합니다 (분야를 바꾸면 이 검사와 content/types.ts 의 AreaId 도 함께)`);
+for (const a of areaDoc.items) {
+  assert(SLUG.test(a.slug || ''), `research-areas "${a.id}": slug 형식`);
+  for (const k of ['title', 'ko', 'summary', 'description']) assert(typeof a[k] === 'string' && a[k].trim(), `research-areas "${a.id}": ${k} 없음`);
+  assert(Array.isArray(a.keywords) && a.keywords.every((k) => typeof k === 'string'), `research-areas "${a.id}": keywords 는 글자 목록이어야 합니다`);
+}
+
+// 한 덩어리 문서 — 화면이 바로 읽는 칸이 빠지지 않았는지 (관리 화면 lib/cms/collections.ts 의 필수 칸과 같게)
+const text = (v) => typeof v === 'string' && v.trim() !== '';
+const textList = (v) => Array.isArray(v) && v.length > 0 && v.every(text);
+const needText = (doc, keys, label) => {
+  for (const k of keys) assert(text(doc?.[k]), `${label}: ${k} 없음`);
+};
+const needLines = (doc, keys, label) => {
+  for (const k of keys) assert(textList(doc?.[k]), `${label}: ${k} 는 한 줄 이상인 글자 목록이어야 합니다`);
+};
+const optText = (doc, keys, label) => {
+  for (const k of keys) assert(doc?.[k] === null || doc?.[k] === undefined || typeof doc[k] === 'string', `${label}: ${k} 는 글자 또는 null`);
+};
+
+const brandDoc = read('brand.json');
+needText(brandDoc, ['name', 'nameKo', 'meaning', 'affiliation', 'tagline', 'sloganKo', 'wordmark'], 'brand');
+needLines(brandDoc, ['taglineLines'], 'brand');
+assert(Array.isArray(brandDoc.intro) && brandDoc.intro.length === 2 && brandDoc.intro.every(text), 'brand: intro 는 문단 두 개여야 합니다 (첫 문단 = Home 첫 화면·About 첫머리, 둘째 = Vision)');
+assert(Array.isArray(brandDoc.fields) && brandDoc.fields.every(text), 'brand: fields 는 글자 목록이어야 합니다');
+for (const [i, pl] of (brandDoc.pillars || []).entries()) {
+  needText(pl, ['label', 'ko', 'text'], `brand.pillars[${i}]`);
+  if (pl.areas != null) isAreaList(pl.areas, `brand.pillars[${i}]`);
+}
+
+const siteDoc = read('site.json');
+needText(siteDoc, ['university', 'universityEn', 'department', 'departmentEn', 'major', 'majorEn', 'building', 'room', 'phone'], 'site');
+optText(siteDoc, ['street', 'email'], 'site');
+assert(typeof siteDoc.emailIsSample === 'boolean', 'site: emailIsSample 은 true/false');
+if (siteDoc.email && /@example.(com|org|net)$/i.test(siteDoc.email) && !siteDoc.emailIsSample) errors.push('site: example 주소는 예시 주소입니다 — emailIsSample 을 true 로 두거나 실제 주소로 바꾸세요');
+if (siteDoc.emailIsSample) warn.push(`site: 문의 이메일이 예시(가상) 주소입니다 (${siteDoc.email})`);
+
+const prof = read('profile.json');
+needText(prof, ['slug', 'name', 'title', 'affiliation', 'office', 'phone', 'photoAlt'], 'profile');
+optText(prof, ['nameEn', 'email', 'bio', 'photo'], 'profile');
+if (prof.photo && !publicFile(prof.photo)) errors.push('profile: photo 파일 없음 "' + prof.photo + '"');
+isAreaList(prof.interestAreas, 'profile.interestAreas');
+for (const [i, e] of (prof.education || []).entries()) needText(e, ['institution', 'degree', 'date'], `profile.education[${i}]`);
+
+const pagesDoc = read('pages.json');
+const heroPage = (id) => {
+  needLines(pagesDoc[id], ['heroLines'], `pages.${id}`);
+  needText(pagesDoc[id], ['heroKo'], `pages.${id}`);
+  optText(pagesDoc[id], ['heroLead'], `pages.${id}`);
+};
+for (const id of ['research', 'projects', 'publications', 'people', 'books', 'news', 'contact']) heroPage(id);
+needText(pagesDoc.home, ['heroPrimary', 'heroSecondary', 'heroCaption', 'visionLabel', 'visionStatement', 'visionLink', 'researchKo', 'researchDescription', 'researchLink', 'pubsKo', 'pubsDescription', 'pubsLink', 'projectsKo', 'projectsDescription', 'projectsLink', 'peopleKo', 'peopleLink', 'newsKo', 'newsLink'], 'pages.home');
+needLines(pagesDoc.home, ['keywords', 'researchTitle', 'pubsTitle', 'projectsTitle', 'peopleTitle', 'newsTitle'], 'pages.home');
+needLines(pagesDoc.about, ['heroLines'], 'pages.about');
+needText(pagesDoc.about, ['overviewTitle', 'overviewKo', 'overviewStatement', 'visionTitle', 'visionKo', 'visionStatement', 'joinTitle', 'joinKo', 'joinLead', 'joinPrimary', 'joinSecondary'], 'pages.about');
+needLines(pagesDoc.people, ['membersTitle', 'alumniTitle'], 'pages.people');
+needText(pagesDoc.people, ['membersKo', 'emptyTitle', 'emptyText', 'alumniKo'], 'pages.people');
+needText(pagesDoc.contact, ['formTitle', 'formNote', 'joinTitle', 'joinKo'], 'pages.contact');
+assert(Array.isArray(pagesDoc.contact?.faq), 'pages.contact: faq 는 목록이어야 합니다');
+for (const [i, q] of (pagesDoc.contact?.faq || []).entries()) needText(q, ['title', 'content'], `pages.contact.faq[${i}]`);
+
 // lab history
 const hist = read('lab-history.json');
 for (const h of hist.items) assert(/^\d{4}$/.test(h.year) && h.title, 'lab-history: year/title 형식');

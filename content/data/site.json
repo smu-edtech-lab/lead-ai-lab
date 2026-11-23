@@ -1,0 +1,17 @@
+{
+  "meta": {
+    "note": "소속·연락처 — 관리 화면 ‘연구실 정보 › 소속·연락처’에서 고칩니다. About·Contact·바닥글·메뉴에 함께 나옵니다. 이메일은 2026-11-15 연구실 요청으로 넣은 예시(가상) 주소입니다(example.com 은 문서·예시용으로 예약된 도메인이라 이 주소로 보낸 메일은 누구에게도 배달되지 않습니다). 실제 주소가 정해지면 email 을 바꾸고 emailIsSample 을 false 로 바꾸세요. email 이 null 이면 메일 주소 표시와 메일 보내기가 모두 숨습니다. 도로명 주소(street)는 문서에 없어 확인 후 입력합니다."
+  },
+  "university": "상명대학교",
+  "universityEn": "Sangmyung University",
+  "department": "교육학과(서울)",
+  "departmentEn": "Department of Education, Seoul Campus",
+  "major": "교육공학 / HRD",
+  "majorEn": "Educational Technology & Human Resource Development",
+  "building": "중앙교수회관(S관)",
+  "room": "S214",
+  "street": null,
+  "phone": "02-2287-5456",
+  "email": "leadailab@example.com",
+  "emailIsSample": true
+}

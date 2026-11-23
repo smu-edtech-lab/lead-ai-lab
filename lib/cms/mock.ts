@@ -8,6 +8,7 @@ import newsData from '@/content/data/news.json';
 import membersData from '@/content/data/members.json';
 import projectsData from '@/content/data/projects.json';
 import publicationsData from '@/content/data/publications.json';
+import { builtFiles } from '@/lib/site-docs';
 import { bytesToBase64, utf8ToBase64 } from './encoding';
 import { CmsError, type ChangeInfo, type CmsUser, type DeployInfo, type FileChange, type PullInfo, type RepoBackend, type RequestInfo, type RequestInput, type RequestResult } from './types';
 
@@ -42,6 +43,9 @@ function initialFiles(): Record<string, string> {
     'content/data/projects.json': json(projectsData),
     'content/data/publications.json': json(publicationsData),
   };
+  // 연구실 정보·페이지 문구 (lib/site-docs.ts 의 DOC_FILES)
+  for (const [path, data] of Object.entries(builtFiles)) files[path] = json(data);
+  const profilePhoto = (builtFiles['content/data/profile.json'] as { photo?: unknown }).photo;
   const pick = (list: unknown[], ...keys: string[]) => list.flatMap((x) => keys.map((k) => (x as Record<string, unknown>)[k]));
   const images = [
     ...pick(newsData.items, 'image'),
@@ -49,6 +53,7 @@ function initialFiles(): Record<string, string> {
     ...pick(membersData.alumni, 'photo'),
     ...pick(publicationsData.items, 'cover', 'abstractImage'),
     ...pick(projectsData.items, 'media'),
+    profilePhoto,
   ];
   for (const p of images) if (typeof p === 'string' && p.startsWith('/images/')) files[`public${p}`] = `url:${p}`;
   return files;

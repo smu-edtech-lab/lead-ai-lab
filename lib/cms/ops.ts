@@ -5,7 +5,7 @@
  * 그래서 두 사람이 같은 파일의 서로 다른 항목(또는 같은 항목의 서로 다른 칸)을 고쳐도 둘 다 반영되고,
  * 같은 칸을 둘 다 고친 경우에만 충돌로 알려 줍니다.
  */
-import { ASSET_PATH, collections, fileHooks, itemsOf, keyOf, nextKey, type CollectionDef, type CollectionId, type FieldDef, type Item } from './collections';
+import { ASSET_PATH, collections, fileHooks, itemsOf, keyOf, nextKey, singleOf, type CollectionDef, type CollectionId, type FieldDef, type Item } from './collections';
 import { CmsError } from './types';
 
 export type Op =
@@ -103,9 +103,26 @@ export function applyOps(files: Record<string, unknown>, ops: Op[]): { conflicts
     if (!def) throw new CmsError('validation', `알 수 없는 항목 종류: ${op.collection}`);
     const data = files[def.file] as Record<string, unknown> | undefined;
     if (!data || typeof data !== 'object') throw new CmsError('not-found', `${def.file} 파일을 찾을 수 없습니다.`);
+    touched.add(def.file);
+
+    if (def.single) {
+      // 한 덩어리 문서 — 고치기만 있음. 다른 사람이 다른 칸을 고쳤으면 칸 단위로 합침
+      if (op.kind !== 'upsert') throw new CmsError('validation', `${def.label}은(는) 지우거나 순서를 바꿀 수 없습니다.`);
+      const current = singleOf(data, def);
+      const { item, clashes } = resultOfUpsert(op, current);
+      if (clashes.length) conflicts.push({ collection: op.collection, key: op.key, title: def.title(op.item), current, before: op.before, fields: clashes });
+      if (def.single.path) data[def.single.path] = item;
+      else {
+        // 파일 전체가 문서 — 같은 객체를 비우고 채워 files 안의 참조를 그대로 둠
+        for (const k of Object.keys(data)) delete data[k];
+        Object.assign(data, item);
+      }
+      keys.set(op, op.key);
+      continue;
+    }
+
     if (!Array.isArray(data[def.arrayKey])) data[def.arrayKey] = [];
     const arr = data[def.arrayKey] as Item[];
-    touched.add(def.file);
 
     if (op.kind === 'order') {
       const pos = new Map(op.keys.map((k, i) => [k, i]));
@@ -164,6 +181,7 @@ export function describeOp(op: Op): string {
   if (op.kind === 'putFile') return `사진 올림 — ${op.path.replace(/^public/, '')}`;
   if (op.kind === 'deleteFile') return `사진 지움 — ${op.path.replace(/^public/, '')}`;
   const def = collections[op.collection];
+  if (def.single) return `${def.itemLabel} 수정`;
   if (op.kind === 'order') return `${def.label} 순서 변경`;
   if (op.kind === 'delete') return `${def.itemLabel} 삭제 — ${op.before ? def.title(op.before) : op.key}`;
   return `${def.itemLabel} ${op.before ? '수정' : '추가'} — ${def.title(op.item)}`;
@@ -220,6 +238,10 @@ function normalizeValue(f: FieldDef, v: unknown): unknown {
       const arr = Array.isArray(v) ? v.map(cleanText).filter(Boolean) : [];
       return arr.length ? arr : undefined;
     }
+    case 'lines': {
+      const arr = Array.isArray(v) ? v.map(cleanText).filter(Boolean) : [];
+      return arr.length ? arr : emptyValue(f);
+    }
     case 'tags':
     case 'areas':
       return Array.isArray(v) ? Array.from(new Set(v.map(cleanText).filter(Boolean))) : [];
@@ -231,16 +253,20 @@ function normalizeValue(f: FieldDef, v: unknown): unknown {
       const rows = (Array.isArray(v) ? v : [])
         .map((row) => {
           const r = (row ?? {}) as Item;
-          const out: Item = {};
+          // keepExtra: 폼에 없는 줄 속 칸(LEAD 네 축의 key·areas 등)은 그대로 두고, 폼의 칸만 정리
+          const out: Item = f.keepExtra ? { ...r } : {};
+          if (f.keepExtra) delete out.hidden;
           for (const sub of f.fields ?? []) {
             const nv = normalizeValue(sub, r[sub.name]);
             if (nv !== undefined) out[sub.name] = nv;
+            else delete out[sub.name];
           }
           // '사이트에 표시' 를 끈 줄만 hidden: true (표시하는 줄은 키를 두지 않음)
           if (f.hideable && r.hidden === true) out.hidden = true;
           return out;
         })
-        .filter((r) => Object.entries(r).some(([k, x]) => k !== 'hidden' && x !== null && x !== undefined && x !== ''));
+        // 폼의 칸이 모두 빈 줄은 버림
+        .filter((r) => (f.fields ?? []).some((sub) => r[sub.name] !== null && r[sub.name] !== undefined && r[sub.name] !== ''));
       return rows.length ? rows : undefined;
     }
     default:
@@ -255,16 +281,18 @@ function normalizeValue(f: FieldDef, v: unknown): unknown {
  */
 export function normalizeItem(def: CollectionDef, draft: Item, original: Item | null): Item {
   const fieldByName = new Map(def.fields.map((f) => [f.name, f]));
+  // 한 덩어리 문서는 주소·번호 칸이 없음
+  const keyField = def.single ? null : def.keyField;
   const order = [
     ...(original ? Object.keys(original) : []),
-    def.keyField,
+    ...(keyField ? [keyField] : []),
     ...Object.keys(def.defaults()),
     ...def.fields.map((f) => f.name),
     ...Object.keys(draft),
   ];
   const out: Item = {};
   for (const k of Array.from(new Set(order))) {
-    if (k === def.keyField) {
+    if (k === keyField) {
       out[k] = cleanText(draft[k]);
       continue;
     }
@@ -277,5 +305,6 @@ export function normalizeItem(def: CollectionDef, draft: Item, original: Item | 
 
 /** 목록에서 key 로 항목 찾기 */
 export function findItem(data: unknown, def: CollectionDef, key: string): Item | null {
+  if (def.single) return singleOf(data, def);
   return itemsOf(data, def.arrayKey).find((x) => keyOf(x) === key) ?? null;
 }

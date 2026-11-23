@@ -53,6 +53,7 @@ function checkField(f: FieldDef, value: unknown, path: string, errors: FieldErro
       break;
     case 'tags':
     case 'paragraphs':
+    case 'lines':
       if (!Array.isArray(value) || value.some((x) => typeof x !== 'string')) errors[path] = `${f.label} 형식이 올바르지 않습니다.`;
       break;
     case 'image':
@@ -84,7 +85,9 @@ export function validateItem(def: CollectionDef, item: Item, ctx: ValidationCont
   const errors: FieldErrors = {};
   const k = def.keyField;
   const key = typeof item[k] === 'string' ? (item[k] as string) : '';
-  if (def.autoKey) {
+  if (def.single) {
+    // 한 덩어리 문서 — 주소·번호가 없음
+  } else if (def.autoKey) {
     // 자동 번호 — 게시할 때 정해지므로 형식만 확인 (겹치면 엔진이 다음 번호로 바꿈)
     if (key && !new RegExp(`^${def.autoKey.prefix}\\d+$`).test(key)) errors[k] = '번호 형식이 올바르지 않습니다.';
   } else if (!key) errors[k] = '주소(영문)를 입력해 주세요.';

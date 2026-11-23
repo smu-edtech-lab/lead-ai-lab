@@ -56,15 +56,17 @@ lib/
   motion/hooks.ts       useReveal, useScrollLink, useMagnetic, useTilt, useFocusTrap …
 content/
   brand.ts              브랜드 설정의 타입·파생값(brand, brandApproved, wordmarkParts) — 모든 브랜드 문구의 진입점
-  site.ts               대학·연락처·내비게이션·FAQ (labName/labNameEn 은 brand 에서 파생)
+  site.ts               내비게이션·문의 자동 발송·Home 구성원 미리보기 설정 + 소속·연락처(data/site.json 을 읽어 site 로 묶음, labName/labNameEn 은 brand 에서 파생)
                         메뉴 순서: Home · About · Research(Areas/Publications/Projects/Presentations) · People · Books · News · Contact
                         — 헤더·푸터·모바일 메뉴가 모두 이 nav 배열을 읽으며, 활성 메뉴는 SiteHeader.activeNavId 가 경로로 계산(/publications 는 Research)
                         — children(하위 메뉴)은 데스크톱 드롭다운과 모바일 메뉴의 하위 바로가기(.lab-mmenu__sub)에 함께 표시
-  profile.ts            지도교수 프로필
-  research-areas.ts     연구 분야 5개 (provisional: true)
+  profile.ts            지도교수 프로필 타입 (내용은 data/profile.json)
+  research-areas.ts     연구 분야 5개 (내용은 data/research-areas.json, provisional: true)
+  pages.ts              페이지 문구 타입 (내용은 data/pages.json — 페이지별 제목·소개 문장·섹션 제목·버튼 이름·FAQ)
   types.ts              데이터 타입
   data/brand.json       브랜드 설정(명칭·워드마크·슬로건·소개문·LEAD 네 축·승인 상태) — 단일 출처
-  data/*.json           publications, projects, career, members, news, lab-history
+  data/*.json           publications, projects, career, members, news, lab-history, pages, site, profile, research-areas
+                        — 관리자 화면(/admin)이 고치는 파일. 공개 페이지 화면 부품은 components/pages/*(관리자 화면 미리보기와 같은 부품)
   DATA-NOTES.md         데이터 변환 메모·누락 항목·검토 필요 사항
 scripts/
   build-tokens.mjs      design-system/tokens.json → styles/tokens.css
@@ -74,7 +76,7 @@ scripts/
 
 ## 관리자 화면 (CMS)
 
-소식·구성원·졸업생과 논문·저역서·학술발표·연구 과제는 코드 없이 **관리자 화면 `/admin`** 에서 고칠 수 있습니다 (배포본: `https://smu-edtech-lab.github.io/lead-ai-lab/admin`). 번호(종류별 최대 + 1)·연도·정렬값·과제 기간·`counts` 는 관리자 화면이 아래 표의 규칙대로 자동으로 맞춥니다.
+소식·구성원·졸업생과 논문·저역서·학술발표·연구 과제, 연구실 정보(이름·소개, 소속·연락처, 지도교수·경력, 연구 분야)와 페이지 문구(실제 페이지 미리보기와 함께)는 코드 없이 **관리자 화면 `/admin`** 에서 고칠 수 있습니다 (배포본: `https://smu-edtech-lab.github.io/lead-ai-lab/admin`). 번호(종류별 최대 + 1)·연도·정렬값·과제 기간·`counts` 는 관리자 화면이 아래 표의 규칙대로 자동으로 맞춥니다.
 연구실 저장소에 초대받은 GitHub 계정(Write 이상)으로 로그인하며, 편집자는 고친 뒤 바뀐 칸을 확인 창에서 보고 바로 게시합니다(관리자 승인 단계 없음, 모든 게시는 커밋 기록에 남음).
 저장한 내용은 이 저장소의 `content/data/*.json`·`public/images/` 에 커밋되고, 1~2분 뒤 자동 배포됩니다.
 처음 맡은 편집자·담당자는 단계별 안내인 **[docs/홈페이지-관리-가이드.md](docs/홈페이지-관리-가이드.md)** 부터 보세요 (관리 화면 위쪽 **사용 안내 ↗** 로도 열림). 입력 항목·저장 위치·권한과 계정의 자세한 정리는 **[docs/CMS-사용-안내.md](docs/CMS-사용-안내.md)**, 처음 설정(로그인 중계 서버·GitHub App)과 편집자 추가 방법은 **[docs/CMS-설정-안내.md](docs/CMS-설정-안내.md)**, 새 항목 종류를 CMS 에 붙이는 방법은 `lib/cms/collections.ts` 주석을 보세요.
@@ -82,7 +84,7 @@ scripts/
 
 ## 데이터 수정 방법 (컴포넌트 수정 불필요)
 
-아래 표는 파일을 직접 고칠 때의 안내입니다. 소식·구성원·졸업생·논문·저역서·학술발표·연구 과제는 관리자 화면에서도 같은 형식으로 저장됩니다(연구 분야 명칭, 브랜드·교수 소개 문구 등은 아직 파일로만).
+아래 표는 파일을 직접 고칠 때의 안내입니다. 데이터 파일(`content/data/*.json`)은 관리자 화면에서도 같은 형식으로 저장됩니다(메뉴 구성·로고 글자·문의 자동 발송 주소·Home 구성원 미리보기 표시는 파일로만).
 
 | 할 일 | 파일 | 비고 |
 | --- | --- | --- |
@@ -95,12 +97,13 @@ scripts/
 | 저역서 표지 | `content/data/publications.json` book 항목의 `cover`(public/ 기준 경로)·`coverAlt` | 확인된 표지 파일만 입력. 없으면 /books 에서 중립 placeholder |
 | 논문 초록 이미지 | 이미지 파일은 `public/images/abstracts/<논문 id>.jpg`, journal 항목에 `abstractImage`(예: `"/images/abstracts/j59.jpg"`) | 연구실이 준 초록 캡처만. 있으면 논문 목록에서 제목이나 'Abstract 초록 보기' 버튼을 누를 때 이미지 창이 열리고(원문·DOI 는 창 아래 버튼), + 버튼으로 펼친 상세 칸 맨 위에도 같은 이미지가 나옴(처음 펼칠 때 불러옴), 없으면 제목은 원래대로 DOI·논문 페이지 링크. `npm run check:data` 가 파일이 있는지 확인 |
 | 저역서 구매 링크 | 같은 book 항목의 `purchaseUrl` | 연구실이 알려 준 서점 상품 페이지 주소만 입력. 있으면 /books 에서 표지를 누를 때 새 창으로 열림, 없으면 표지는 링크가 아님 |
-| 연구 분야 명칭·설명 | `content/research-areas.ts` | 확정 후 `provisional: false` 로 바꾸면 ‘임시 분류’ 안내가 사라짐 |
+| 연구 분야 명칭·설명 | `content/data/research-areas.json` | 관리자 화면 ‘연구 분야’. 분야를 새로 만들거나 없앨 때만 파일로(`content/types.ts` 의 `AreaId`, `scripts/check-data.mjs` 의 `AREAS` 도 함께) |
+| 페이지 문구 | `content/data/pages.json` | 관리자 화면 ‘페이지 문구’. 페이지별 제목(`heroLines` 등, 한 줄에 하나씩 적은 목록)·국문 제목·소개 문장(`null` 이면 생략, Research 는 자동 문장)·섹션 제목·버튼 이름·Contact FAQ. 화면 부품은 `components/pages/*` |
 | 브랜드 명칭·슬로건·소개문·비전 축 | `content/data/brand.json` | `name`/`wordmark`/`nameKo`/`meaning`/`tagline`/`sloganKo`/`intro[]`/`pillars[]`. 헤더·푸터·히어로·커튼·SEO·OG 가 모두 여기서 읽음. 승인되면 `meta.status` 를 `"approved"` 로 |
-| 이메일·주소 | `content/site.ts` | `email`(지금은 예시 주소 — 실제 주소로 바꾸고 `emailIsSample` 을 `false` 로), `address.street` (연구실 명칭은 brand.json 에서 파생) |
+| 소속·이메일·주소·전화 | `content/data/site.json` | 관리자 화면 ‘소속·연락처’. `email`(지금은 예시 주소 — 실제 주소로 바꾸고 `emailIsSample` 을 `false` 로), `street`(도로명 주소) (연구실 명칭은 brand.json 에서 파생) |
 | Home 구성원 미리보기 | `content/site.ts` | `homeShowPeople` — 지금 `false`(숨김, 2026-11-22 연구실 요청). `true` 로 바꾸면 Home 에 구성원 카드(목록의 처음 4명)가 다시 나옴. People 메뉴·People 페이지·개인 상세 페이지·검색은 이 값과 상관없이 그대로 |
 | 문의 자동 발송 | `content/site.ts` | `contactEndpoint` — Google Apps Script 웹 앱 주소. `null` 이면 꺼짐. 만드는 방법: [docs/문의-자동발송-설정.md](docs/문의-자동발송-설정.md), 스크립트: `contact-mail/Code.gs` |
-| 교수 소개문·영문명·링크 | `content/profile.ts` | `bio`, `nameEn`, `links[]` |
+| 교수 소개문·영문명·사진·학력 | `content/data/profile.json` | 관리자 화면 ‘지도교수’. `bio`, `nameEn`, `photo`, `education[]` (`links[]` 는 파일로만) |
 
 뉴스 목록에는 `news.json` 의 수동 항목 외에, 최근 2년 논문·경력에서 자동 파생된 ‘실적 기반’ 항목이 함께 표시됩니다(`lib/content.ts` `derivedNews`). 원하지 않으면 해당 함수 호출을 제거하세요.
 

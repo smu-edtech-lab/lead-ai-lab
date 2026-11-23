@@ -5,7 +5,7 @@
 
 - 관리자 화면 주소: `https://smu-edtech-lab.github.io/lead-ai-lab/admin` (저장소를 옮기면 주소가 바뀝니다)
 - 저장소: `https://github.com/smu-edtech-lab/lead-ai-lab` — 연구실 GitHub 조직 `smu-edtech-lab` 소유 (2026-11-10 개인 계정에서 옮김)
-- 지금 편집할 수 있는 것: **소식·구성원·졸업생**, **논문·저역서·학술발표·연구 과제** (사이트 문구·디자인·레이아웃은 다음 단계)
+- 지금 편집할 수 있는 것: **소식·구성원·졸업생**, **논문·저역서·학술발표·연구 과제**, **연구실 정보**(이름·소개, 소속·연락처, 지도교수, 경력, 연구 분야), **페이지 문구**(페이지별 제목·소개 문장·섹션 제목 — 실제 페이지 미리보기와 함께). 디자인·레이아웃은 다음 단계
 - GitHub 계정이 없는 분(교수님 등)은 비밀번호로 들어와 **검토 요청**을 보내고, 담당자가 확인해 반영합니다 — 켜는 방법 **14장**, 쓰는 방법 [검토-요청-안내.md](검토-요청-안내.md)
 - 편집자·담당자용 단계별 안내: **[홈페이지-관리-가이드.md](홈페이지-관리-가이드.md)** (관리 화면 위쪽 **사용 안내 ↗**)
 - 메뉴별 입력 칸·사진 규격·저장 위치·권한과 계정·인수인계 체크리스트: **[CMS-사용-안내.md](CMS-사용-안내.md)**
@@ -257,8 +257,11 @@ GitHub → **Settings** → **Developer settings** → **Personal access tokens*
 | 파일 | 하는 일 |
 |---|---|
 | `app/admin/page.tsx` | 관리자 화면 주소 |
-| `components/cms/` | 화면 (로그인, 목록, 편집, 게시 전 확인 창) |
-| `lib/cms/collections.ts` | **편집할 항목과 입력 칸 정의** — 새 항목 종류는 여기에 추가 (자동 번호 `autoKey`, 자동 계산 `derive`, 종류 나누기 `match`, 파일 합계 `fileHooks`) |
+| `app/admin/preview/page.tsx` | 페이지 미리보기 창의 안쪽 (관리 화면이 고치는 중인 문구를 보내면 실제 페이지로 그림 — `components/cms/PreviewFrame.tsx`·`PagePreview.tsx`) |
+| `components/cms/` | 화면 (로그인, 목록, 편집, 게시 전 확인 창, 페이지 미리보기) |
+| `components/pages/` | 공개 페이지 화면 부품 (`HomeView.tsx` 등) — 공개 페이지(`app/*/page.tsx`)와 관리 화면 미리보기가 함께 씀 |
+| `lib/site-docs.ts` | 사이트 문구 묶음 (`pages.json`·`brand.json`·`site.json`·`profile.json`·`career.json`·`research-areas.json` → 화면용) |
+| `lib/cms/collections.ts` | **편집할 항목과 입력 칸 정의** — 새 항목 종류는 여기에 추가 (자동 번호 `autoKey`, 자동 계산 `derive`, 종류 나누기 `match`, 파일 합계 `fileHooks`, 한 덩어리 문서 `single`, 페이지 미리보기 `previewPages`) |
 | `lib/cms/engine.ts` | 게시 처리 (최신 내용에 다시 적용·칸 단위 병합·충돌 확인) |
 | `lib/cms/github.ts` | GitHub API 연결 |
 | `lib/cms/request.ts` | 검토 요청 모드 (중계 서버를 거쳐 읽기·요청 보내기, 요청 글의 바뀐 칸 표) |

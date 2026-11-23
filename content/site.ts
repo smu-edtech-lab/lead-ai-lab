@@ -1,9 +1,57 @@
 /**
  * 사이트 전역 설정 — 연구실 정체성·내비게이션·연락처.
- * 대괄호 [ ] 로 묶인 값은 확정 전 placeholder 입니다. 확정되면 그대로 바꿔 넣으세요.
+ * 소속·주소·전화·이메일은 content/data/site.json 에 있고, 관리 화면(/admin ‘연구실 정보 › 소속·연락처’)에서 고칩니다.
+ * 이 파일에는 화면 구조에 가까운 설정(메뉴, 문의 자동 발송 주소, Home 구성원 미리보기 표시 등)만 남깁니다.
  */
 
+import data from './data/site.json';
 import { brand, brandApproved } from './brand';
+
+/** content/data/site.json 의 모양 — 관리 화면이 이 칸들을 고칩니다 */
+export interface SiteData {
+  university: string;
+  universityEn: string;
+  department: string;
+  departmentEn: string;
+  major: string;
+  majorEn: string;
+  building: string;
+  room: string;
+  /** 도로명 주소 — 문서에 없어 확인 후 입력 */
+  street: string | null;
+  phone: string;
+  /** 문의 이메일 — Contact 문의 폼이 이 주소로 방문자의 메일 앱을 엽니다. null 이면 메일 주소 표시와 메일 보내기가 모두 숨습니다 */
+  email: string | null;
+  /** true 면 화면에서 주소 옆에 '예시' 배지를 붙이고, 푸터에는 주소를 싣지 않습니다 */
+  emailIsSample: boolean;
+}
+
+/** "02-2287-5456" → "tel:+82-2-2287-5456" (국내 번호는 국가 번호를 붙임) */
+export function telHref(phone: string): string {
+  const p = phone.trim();
+  return `tel:${p.startsWith('0') ? `+82-${p.slice(1)}` : p}`;
+}
+
+/** 화면에서 쓰는 소속·연락처 묶음 — 공개 페이지와 관리 화면 미리보기가 같은 함수로 만듭니다 */
+export function siteInfo(d: SiteData) {
+  return {
+    university: d.university,
+    universityEn: d.universityEn,
+    department: d.department,
+    departmentEn: d.departmentEn,
+    major: d.major,
+    majorEn: d.majorEn,
+    address: { building: d.building, room: d.room, street: d.street },
+    phone: d.phone,
+    phoneHref: telHref(d.phone),
+    email: d.email,
+    emailIsSample: d.emailIsSample,
+  };
+}
+
+export type SiteInfo = ReturnType<typeof siteInfo>;
+
+const info = siteInfo(data as SiteData);
 
 export const site = {
   /** 연구실 명칭(국문) — 브랜드 제안안(content/data/brand.json). 대학 공식 승인 전이므로 공식 기관 명칭(university/department)과 구분해 표기 */
@@ -13,30 +61,10 @@ export const site = {
   /** 브랜드가 대학의 공식 승인을 받았는지 (brand.json meta.status) */
   labNameConfirmed: brandApproved,
   brandSub: brand.meaning,
-  university: '상명대학교',
-  universityEn: 'Sangmyung University',
-  department: '교육학과(서울)',
-  departmentEn: 'Department of Education, Seoul Campus',
-  major: '교육공학 / HRD',
-  majorEn: 'Educational Technology & Human Resource Development',
-  address: {
-    building: '중앙교수회관(S관)',
-    room: 'S214',
-    /** 도로명 주소 — 문서에 없어 확인 후 입력 */
-    street: null as string | null,
-  },
-  phone: '02-2287-5456',
-  phoneHref: 'tel:+82-2-2287-5456',
-  /** 문의 이메일 — Contact 문의 폼이 이 주소로 방문자의 메일 앱을 엽니다.
-   *  지금 값은 2026-11-15 연구실 요청으로 넣은 예시(가상) 주소입니다. example.com 은 문서·예시용으로 예약된 도메인이라
-   *  이 주소로 보낸 메일은 누구에게도 배달되지 않습니다. 실제 주소가 정해지면 이 값을 바꾸고 emailIsSample 을 false 로 바꾸세요.
-   *  null 이면 메일 주소 표시와 메일 보내기가 모두 숨고, 폼은 입력 내용을 정리해 보여 주기만 합니다. */
-  email: 'leadailab@example.com' as string | null,
-  /** true 면 화면에서 주소 옆에 '예시' 배지를 붙이고, 푸터에는 주소를 싣지 않습니다 */
-  emailIsSample: true as boolean,
+  ...info,
   /** Contact 문의 자동 발송 주소 — Google Apps Script 웹 앱 주소(https://script.google.com/macros/s/…/exec).
    *  값이 있으면 문의 폼의 보내기 버튼이 이 주소로 내용을 보내고, 스크립트(contact-mail/Code.gs)가 연구실 메일로 발송합니다.
-   *  null 이면 자동 발송 없이 위 email 로 방문자의 메일 앱을 여는 방식으로 동작합니다.
+   *  null 이면 자동 발송 없이 site.json 의 email 로 방문자의 메일 앱을 여는 방식으로 동작합니다.
    *  만드는 방법: docs/문의-자동발송-설정.md. 이 주소는 방문자 브라우저에 그대로 보이는 값이라 비밀이 아닙니다(받는 메일 주소는 스크립트 안에만 있습니다). */
   contactEndpoint: null as string | null,
   /** Home 의 People 미리보기(구성원 카드 최대 4장) 표시 여부 — 2026-11-22 연구실 요청으로 숨겼습니다.
@@ -46,9 +74,8 @@ export const site = {
   url: process.env.NEXT_PUBLIC_SITE_URL || 'https://lab.example.ac.kr',
   /** 첨부 실적 문서 기준일 */
   dataAsOf: '2026-11-05',
-  description: `${brand.name}(${brand.nameKo}) — 상명대학교 교육학과 이현우 교수 연구실. ${brand.sloganKo} ${brand.intro[0]}`,
-} as const;
-
+  description: `${brand.name}(${brand.nameKo}) — ${info.university} 교육학과 이현우 교수 연구실. ${brand.sloganKo} ${brand.intro[0]}`,
+};
 export interface NavChild {
   label: string;
   ko?: string;
@@ -105,21 +132,3 @@ export const nav: NavItem[] = [
 
 export const navLabels: Record<string, string> = Object.fromEntries(nav.map((n) => [n.id, n.label]));
 
-/** 연구 키워드 마키(Home) — 브랜드 연구 분야(brand.json fields) + 기존 연구 분야의 핵심어 */
-export const keywordBand = [...brand.fields, 'Teacher Competency', 'Generative AI'];
-
-/** 연구실 참여 안내 (Contact) — 일반 안내. 지원 시기·서류 등 세부 요건은 연구실이 확정하면 교체 */
-export const joinFaq = [
-  {
-    title: '대학원 진학을 희망합니다. 무엇을 준비해야 하나요?',
-    content: '상명대학교 일반대학원 교육학과 모집 요강에서 지원 시기와 필요 서류를 확인하고, 지원 전에 연구실로 연락해 사전 면담을 신청해 주세요.',
-  },
-  {
-    title: '연구실 면담은 어떻게 신청하나요?',
-    content: '연구실 전화(02-2287-5456)로 면담 가능 시간을 문의해 주세요.',
-  },
-  {
-    title: '공동연구·자문 제안은 어디로 보내나요?',
-    content: '제안 개요(목적·기간·역할)를 정리해 연구실로 연락해 주세요.',
-  },
-];

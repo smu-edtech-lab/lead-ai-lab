@@ -6,7 +6,7 @@
  *         중계 서버가 Pull Request(검토 요청)를 만들어 담당자에게 알립니다. 담당자가 GitHub 에서 확인하고 Merge 해야 사이트에 반영됩니다.
  *         메모만 보낸 요청(관리 화면에서 고칠 수 없는 배치·디자인·문구 등)은 Issue 로 만듭니다.
  */
-import { areaOptions, collections, itemsOf, keyOf, type FieldDef, type Item } from './collections';
+import { areaOptions, collections, itemsOf, keyOf, listRowText, type FieldDef, type Item } from './collections';
 import type { ProjectRef } from './engine';
 import { GitHubBackend } from './github';
 import { josa } from './josa';
@@ -133,17 +133,12 @@ function plainValue(f: FieldDef, v: unknown, projects: ProjectRef[]): string {
       return (v as string[]).join(', ');
     case 'paragraphs':
       return (v as string[]).join('\n\n');
+    case 'lines':
+      return (v as string[]).join('\n');
     case 'checkbox':
       return v === true ? '예' : '아니오';
     case 'list':
-      return (v as Item[])
-        .map((r) => {
-          const p = r.projectId ? projects.find((x) => x.id === r.projectId) : null;
-          const head = p ? `[연구실 과제] ${p.title} (${p.period})` : [r.period, r.title].filter(Boolean).join(' · ');
-          const line = [head, r.role, r.detail].filter(Boolean).join(' · ');
-          return r.hidden === true ? `${line} — 사이트에 표시 안 함` : line;
-        })
-        .join('\n');
+      return (v as Item[]).map((r) => listRowText(f, r, projects)).join('\n');
     default:
       return String(v);
   }

@@ -1,7 +1,7 @@
 'use client';
-/** 항목 목록 — 추가·편집으로 가고, 구성원은 순서를 바꿔 저장합니다 */
+/** 항목 목록 — 추가·편집으로 가고, 구성원·연구 분야는 순서를 바꿔 저장합니다. 페이지 문구 목록(PageTextList)도 여기 */
 import { useMemo, useState } from 'react';
-import { collectionItems, collections, keyOf, type CollectionId, type Item } from '@/lib/cms/collections';
+import { collectionItems, collections, keyOf, pageTextList, type CollectionId, type Item } from '@/lib/cms/collections';
 import { isCmsError } from '@/lib/cms/types';
 import type { Op } from '@/lib/cms/ops';
 import { useCms } from './context';
@@ -76,9 +76,11 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
           <h1 className="cms-h1">{def.label}</h1>
           <p className="cms-lead">{def.description}</p>
         </div>
-        <Btn variant="primary" onClick={() => navigate(`${collection}/new`)}>
-          + {def.itemLabel} 추가
-        </Btn>
+        {def.canCreate !== false ? (
+          <Btn variant="primary" onClick={() => navigate(`${collection}/new`)}>
+            + {def.itemLabel} 추가
+          </Btn>
+        ) : null}
       </header>
 
       {order ? (
@@ -102,7 +104,7 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
             </>
           }
         >
-          People 페이지에 과정별로 이 순서대로 나옵니다. {rm ? '요청을 보내면 담당자가 확인한 뒤 반영합니다.' : '게시해야 사이트에 반영됩니다.'}
+          {def.orderNote ?? '사이트에 이 순서대로 나옵니다.'} {rm ? '요청을 보내면 담당자가 확인한 뒤 반영합니다.' : '게시해야 사이트에 반영됩니다.'}
         </Notice>
       ) : null}
 
@@ -121,13 +123,20 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
       ) : shown.length === 0 ? (
         <div className="cms-empty">
           <p>아직 {def.itemLabel}이(가) 없습니다.</p>
-          <Btn variant="secondary" onClick={() => navigate(`${collection}/new`)}>
-            첫 {def.itemLabel} 추가하기
-          </Btn>
+          {def.canCreate !== false ? (
+            <Btn variant="secondary" onClick={() => navigate(`${collection}/new`)}>
+              첫 {def.itemLabel} 추가하기
+            </Btn>
+          ) : null}
         </div>
       ) : (
         <>
-          {def.orderable && !order && sections.some((g) => g.rows.length > 1) ? <p className="cms-help cms-list__hint">오른쪽 ↑ ↓ 로 같은 과정 안의 순서를 바꾼 뒤 ‘이 순서로 게시’를 누르면 People 페이지 순서가 바뀝니다.</p> : null}
+          {def.orderable && !order && sections.some((g) => g.rows.length > 1) ? (
+            <p className="cms-help cms-list__hint">
+              {def.orderHint ?? '오른쪽 ↑ ↓ 로 순서를 바꾼 뒤 ‘이 순서로 게시’를 누르면 사이트의 순서가 바뀝니다.'}
+              {rm ? ' (검토 요청 모드에서는 ‘이 순서로 요청 보내기’)' : ''}
+            </p>
+          ) : null}
           {sections.map((sec) => (
             <section key={sec.label ?? 'all'} className="cms-listgroup" aria-label={sec.label ?? undefined}>
               {sec.label ? (
@@ -183,6 +192,44 @@ export function CollectionList({ collection }: { collection: CollectionId }) {
           ))}
         </>
       )}
+    </div>
+  );
+}
+
+/** 페이지 문구 목록 — 페이지마다 제목·소개 문장·섹션 제목을 고치는 화면으로 (#/page-…) */
+export function PageTextList() {
+  const { navigate } = useCms();
+  return (
+    <div className="cms-page">
+      <header className="cms-page__head">
+        <h1 className="cms-h1">페이지 문구</h1>
+        <p className="cms-lead">
+          페이지마다 제목·소개 문장·섹션 제목·버튼 이름을 고칩니다. 고치는 동안 오른쪽에 실제 페이지가 미리보기로 보입니다. 여러 페이지에 함께 나오는 연구실 이름·슬로건·소개 문단과 연락처는 ‘연구실 정보’에서 고칩니다.
+        </p>
+      </header>
+      <ul className="cms-list" role="list">
+        {pageTextList.map((def) => (
+          <li key={def.id} className="cms-list__row">
+            <a
+              className="cms-list__main"
+              href={`#/${def.id}`}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(def.id);
+              }}
+            >
+              <span className="cms-list__key">{def.publicPath('')}</span>
+              <span className="cms-list__text">
+                <span className="cms-list__title">{def.label}</span>
+                <span className="cms-list__meta">{def.where}</span>
+              </span>
+              <span className="cms-list__go" aria-hidden="true">
+                고치기 →
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
