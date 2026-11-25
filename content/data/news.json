@@ -12,6 +12,19 @@
   },
   "items": [
     {
+      "slug": "news-20261125",
+      "date": "2026-11-25",
+      "category": "notice",
+      "title": "테스트",
+      "excerpt": "테스트",
+      "body": [
+        "테스트"
+      ],
+      "image": null,
+      "source": "manual",
+      "isSample": true
+    },
+    {
       "slug": "sample-lab-seminar",
       "date": "2026-11-04",
       "category": "event",
