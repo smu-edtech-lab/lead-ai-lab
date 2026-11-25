@@ -226,9 +226,10 @@ GitHub → **Settings** → **Developer settings** → **Personal access tokens*
    Repository permissions › **Issues**: **Read and write** → 맨 아래 **Save changes**.
    이어서 조직 **Settings** → **GitHub Apps**(설치된 App) → `LEAD AI Lab CMS` → **Configure** → 위쪽 권한 변경 안내의 **Review request** → **Accept new permissions**.
    (Contents·Pull requests 는 3단계에서 이미 Read and write 입니다.)
-3. **App ID 와 private key** — 같은 App 의 **General** 화면에서
-   - 위쪽 **App ID**(숫자)를 적어 둡니다.
-   - 아래 **Private keys** → **Generate a private key** 를 누르면 `.pem` 파일이 내려받아집니다. 메모장으로 열어 `-----BEGIN RSA PRIVATE KEY-----` 부터 `-----END RSA PRIVATE KEY-----` 까지 전부 복사합니다.
+3. **App ID 와 private key** — 같은 App 의 설정 화면에서
+   - **General** 화면 위쪽 **App ID**(숫자)를 적어 둡니다.
+   - 왼쪽 **Credentials** → **Key pairs** 탭 → **New key** 를 누르면 `.pem` 파일이 내려받아집니다(예전 화면에서는 General 아래 **Private keys** → **Generate a private key**).
+     메모장으로 열어 `-----BEGIN` 으로 시작하는 줄부터 `-----END` 로 끝나는 줄까지 전부 복사합니다.
    - 3단계에서 만든 예전 키가 목록에 있어도 그대로 두면 됩니다.
 4. **중계 서버에 값 넣기** — Worker → **Settings** → **Variables and secrets** → **Add variable**
 

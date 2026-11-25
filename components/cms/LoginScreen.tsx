@@ -128,7 +128,7 @@ export function LoginScreen({
         ) : null}
 
         <details className="cms-login__more" open={!url && !onMock}>
-          <summary>토큰으로 로그인 (설정 전·비상용)</summary>
+          <summary>토큰으로 로그인 (담당자 비상용)</summary>
           <form
             className="cms-login__token"
             onSubmit={(e) => {

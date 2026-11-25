@@ -317,7 +317,7 @@ function requestBody(env, input, kind) {
       '반영하지 않으려면 **Close pull request** 를 누르고, 이유를 댓글로 남겨 주세요.',
     );
   } else {
-    out.push('**메모로 온 요청**입니다. 관리 화면에서 고칠 수 없는 내용(배치·디자인·사이트 문구 등)이라 담당자가 직접 반영합니다. 반영한 뒤 **Close issue** 를 누릅니다.');
+    out.push('**메모로 온 요청**입니다. 관리 화면에 칸이 없는 내용(화면 배치·디자인·로고·메뉴 구성 등)이라 담당자가 직접 반영합니다. 반영한 뒤 **Close issue** 를 누릅니다.');
   }
   if (reviewers.length) out.push('', `확인 부탁드립니다: ${reviewers.map((r) => `@${r}`).join(' ')}`);
   return { body: out.join('\n'), reviewers };
